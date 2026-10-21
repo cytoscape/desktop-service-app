@@ -42,14 +42,26 @@ Installed apps are saved in `service-apps.json` under the app's folder in the Cy
 | Target | Does |
 |---|---|
 | `make build` | Builds the OSGi bundle into `build/libs/` |
-| `make test` | Runs the unit tests |
-| `make integration-test` | Runs everything: unit tests, integration tests against the fixture service app, the bundle manifest checks, and the style check |
+| `make test` | Every test that runs in the JVM: unit tests, the client and commands against the fixture service app over HTTP, the bundle manifest checks, and the style check |
+| `make integration-test` | The `*IT` tests: Cytoscape Desktop running in Docker, with the app installed, reached over CyREST. Needs Docker |
 | `make lint` / `make lint-fix` | Checks or fixes code style (google-java-format, AOSP) |
 | `make install-app` | Copies the bundle into `~/CytoscapeConfiguration/3/apps/installed`, where a running Cytoscape picks it up |
 | `make fixture` | Runs the hello-world service app on `http://127.0.0.1:8765` (`PORT=n` to change) |
 | `make release VERSION=x.y.z` | Builds a release jar stamped with that version |
 
-Tests named `*IT` are the integration tier. They start the hello-world fixture on a free port and talk to it over real HTTP.
+The two test targets don't overlap: a test class named `*IT` needs Desktop and runs only in `make integration-test`; every other test runs only in `make test`.
+
+### Integration tests against Cytoscape Desktop
+
+`make integration-test` builds a Docker image from `docker/desktop` (Temurin 17 JDK, Xvfb, and Cytoscape from its Linux installer), starts it, copies the app jar into Cytoscape's installed-apps folder, and runs the `*IT` tests over CyREST. Cytoscape in the container reaches the fixture service app on the test host as `host.docker.internal`. One container serves the whole run and is removed at the end; when a test fails, Cytoscape's logs are printed.
+
+Pick the Cytoscape version under test with the installer URL. The checksum is verified when given:
+
+```
+make integration-test CYTOSCAPE_INSTALLER_URL=<url of Cytoscape_x_y_z_unix.sh> CYTOSCAPE_INSTALLER_SHA256=<sha256>
+```
+
+The default is the Cytoscape 3.10.5 installer in `build.gradle`. CI sets both values explicitly in `.github/workflows/ci.yml`.
 
 ## The hello-world service app fixture
 

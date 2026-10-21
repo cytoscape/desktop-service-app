@@ -135,31 +135,66 @@ jar {
     }
 }
 
-// Tests: *IT is the integration tier, everything else the unit tier.
+// Two distinct test suites, no overlap:
+//   test             (make test)             every test that runs in the JVM: unit tests, the
+//                                            fixture service app over HTTP, and the bundle checks
+//   integrationTest  (make integration-test) *IT only: Cytoscape Desktop in a Docker container,
+//                                            reached over CyREST
 test {
     useJUnitPlatform()
+    dependsOn tasks.named('jar')
     exclude '**/*IT.class', '**/*IT$*.class'
     testLogging { events 'passed', 'skipped', 'failed' }
 }
 
-tasks.register('integrationTest', Test) {
-    description = 'Integration tier — the fixture service app, real models, the built bundle.'
+// The Cytoscape Desktop installer baked into the integration-test image. Override with
+// -PcytoscapeInstallerUrl=... (and -PcytoscapeInstallerSha256=..., or empty to skip the check),
+// or the CYTOSCAPE_INSTALLER_URL / CYTOSCAPE_INSTALLER_SHA256 environment variables.
+def defaultInstallerUrl =
+        'https://cytoscape-builds.ucsd.edu/Cytoscape-3.10.5/2026_09_09/rc2/Cytoscape_3_10_5_unix.sh'
+def defaultInstallerSha256 = 'e9d97c59a52d59b15f9e91a46d4df6b089fd896b54dbc9c36c8799a35b3082e2'
+def setting = { String property, String env, String fallback ->
+    def value = project.findProperty(property) ?: System.getenv(env)
+    return value != null ? value.toString() : fallback
+}
+def installerUrl = setting('cytoscapeInstallerUrl', 'CYTOSCAPE_INSTALLER_URL', defaultInstallerUrl)
+// A checksum only applies to the default installer unless one is given for the override.
+def installerSha256 = setting(
+        'cytoscapeInstallerSha256', 'CYTOSCAPE_INSTALLER_SHA256',
+        installerUrl == defaultInstallerUrl ? defaultInstallerSha256 : '')
+// One image per installer, so switching versions never reuses a stale image.
+def desktopImage = 'desktop-service-app-it:' + installerUrl.md5().substring(0, 12)
+
+tasks.register('desktopImage', Exec) {
+    description = 'Builds the Docker image running Cytoscape Desktop for the integration tests.'
     group = 'verification'
-    dependsOn tasks.named('jar')
+    workingDir 'docker/desktop'
+    commandLine 'docker', 'build', '--tag', desktopImage,
+            '--build-arg', "CYTOSCAPE_INSTALLER_URL=${installerUrl}",
+            '--build-arg', "CYTOSCAPE_INSTALLER_SHA256=${installerSha256}",
+            '.'
+    doFirst { logger.lifecycle("Building ${desktopImage} from ${installerUrl}") }
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Integration tests against Cytoscape Desktop running in Docker.'
+    group = 'verification'
+    dependsOn tasks.named('jar'), tasks.named('desktopImage')
     useJUnitPlatform()
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     include '**/*IT.class', '**/*IT$*.class'
-    testLogging { events 'passed', 'skipped', 'failed' }
+    systemProperty 'desktop.image', desktopImage
+    systemProperty 'desktop.jar', tasks.named('jar').get().archiveFile.get().asFile.absolutePath
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        showStandardStreams = true
+    }
     afterSuite { desc, result ->
         if (desc.parent == null && result.testCount == 0) {
             throw new GradleException('integrationTest matched no tests -- the *IT filter is broken')
         }
     }
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('integrationTest')
 }
 
 // Runs the hello-world service app on its own, for manual testing: ./gradlew runFixture

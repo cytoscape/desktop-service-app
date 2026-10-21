@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     # A build that hangs should fail in minutes rather than occupy a runner for six hours.
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -24,12 +24,18 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Unit tests
-        run: make test
+      # Everything that runs in the JVM. Dialog tests build real Swing components, which needs a
+      # display.
+      - name: Tests
+        run: xvfb-run make test
 
-      # Dialog tests build real Swing components, which needs a display.
-      - name: Full suite
-        run: xvfb-run make integration-test
+      # Cytoscape Desktop in Docker, reached over CyREST. The installer URL picks the Cytoscape
+      # version under test; change it here to test another release.
+      - name: Integration tests (Cytoscape Desktop in Docker)
+        env:
+          CYTOSCAPE_INSTALLER_URL: https://cytoscape-builds.ucsd.edu/Cytoscape-3.10.5/2026_09_09/rc2/Cytoscape_3_10_5_unix.sh
+          CYTOSCAPE_INSTALLER_SHA256: e9d97c59a52d59b15f9e91a46d4df6b089fd896b54dbc9c36c8799a35b3082e2
+        run: make integration-test
 
       - name: Upload reports on failure
         if: failure()

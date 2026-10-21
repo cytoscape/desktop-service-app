@@ -50,14 +50,23 @@ public class FixtureServer implements AutoCloseable {
     private final List<RecordedRequest> requests = new CopyOnWriteArrayList<>();
     private final HttpServer server;
 
-    /** Starts on {@code port}; 0 picks a free port. */
+    /** Starts on {@code port} on the loopback interface only; 0 picks a free port. */
     public static FixtureServer start(int port) throws IOException {
-        return new FixtureServer(port, ScenarioCatalog.all());
+        return new FixtureServer("127.0.0.1", port, ScenarioCatalog.all());
     }
 
-    FixtureServer(int port, Map<String, Scenario> scenarios) throws IOException {
+    /**
+     * Starts on {@code port} on every interface, so a Cytoscape running in a Docker container can
+     * reach it through the host's bridge address.
+     */
+    public static FixtureServer startOnAllInterfaces(int port) throws IOException {
+        return new FixtureServer("0.0.0.0", port, ScenarioCatalog.all());
+    }
+
+    FixtureServer(String bindAddress, int port, Map<String, Scenario> scenarios)
+            throws IOException {
         this.scenarios = scenarios;
-        this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        this.server = HttpServer.create(new InetSocketAddress(bindAddress, port), 0);
         server.createContext("/", this::handle);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();

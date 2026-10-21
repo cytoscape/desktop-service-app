@@ -10,7 +10,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
 
     steps:
       - name: Checkout code
@@ -41,8 +41,14 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # Tests gate the release: an app that fails its own suite should not reach a user's Cytoscape.
-      - name: Test
-        run: xvfb-run make integration-test
+      - name: Tests
+        run: xvfb-run make test
+
+      - name: Integration tests (Cytoscape Desktop in Docker)
+        env:
+          CYTOSCAPE_INSTALLER_URL: https://cytoscape-builds.ucsd.edu/Cytoscape-3.10.5/2026_09_09/rc2/Cytoscape_3_10_5_unix.sh
+          CYTOSCAPE_INSTALLER_SHA256: e9d97c59a52d59b15f9e91a46d4df6b089fd896b54dbc9c36c8799a35b3082e2
+        run: make integration-test
 
       - name: Build the release jar
         run: make release VERSION=${{ steps.rel.outputs.version }}

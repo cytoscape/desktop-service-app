@@ -33,7 +33,7 @@ import static org.mockito.Mockito.mock;
  * registry on disk.
  */
 @ExtendWith(FixtureServerExtension.class)
-class CommandsIT {
+class CommandsHttpTest {
 
     @TempDir Path dir;
 

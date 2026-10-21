@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Asserts the packaging contract of the built bundle. Cytoscape silently refuses an app whose OSGi
  * headers are wrong, so these checks fail the build instead.
  */
-class BundleManifestIT {
+class BundleManifestTest {
 
     private static Path bundleJar() throws IOException {
         Path libs = Path.of("build", "libs");

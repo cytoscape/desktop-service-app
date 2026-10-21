@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** All six endpoints over real HTTP, against the hello-world fixture. */
 @ExtendWith(FixtureServerExtension.class)
-class ServiceAppClientIT {
+class ServiceAppClientHttpTest {
 
     private static ServiceAppClient client(FixtureServer fixture, String scenario) {
         return new ServiceAppClient(

@@ -25,13 +25,20 @@ release: clean
 	$(GRADLE) jar -PreleaseVersion=$(VERSION)
 	@ls -1 build/libs/*.jar | sed 's|^|  -> |'
 
-## test: unit tier only. Seconds, for the edit loop.
+# The Cytoscape Desktop installer used by integration-test. Empty means the build's default (see
+# build.gradle). The checksum is verified when given.
+CYTOSCAPE_INSTALLER_URL ?=
+CYTOSCAPE_INSTALLER_SHA256 ?=
+INSTALLER_ARGS := $(if $(CYTOSCAPE_INSTALLER_URL),-PcytoscapeInstallerUrl=$(CYTOSCAPE_INSTALLER_URL)) \
+                  $(if $(CYTOSCAPE_INSTALLER_SHA256),-PcytoscapeInstallerSha256=$(CYTOSCAPE_INSTALLER_SHA256))
+
+## test: every test that runs in the JVM: unit tests, the fixture service app over HTTP, bundle checks, lint
 test:
 	$(GRADLE) test
 
-## integration-test: everything -- both tiers, the bundle manifest checks, and lint
+## integration-test: the *IT tests against Cytoscape Desktop in Docker (CYTOSCAPE_INSTALLER_URL=... to pick the version)
 integration-test:
-	$(GRADLE) check
+	$(GRADLE) integrationTest $(INSTALLER_ARGS)
 
 ## lint: report style violations (Spotless is the whole style specification)
 lint:
