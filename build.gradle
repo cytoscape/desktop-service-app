@@ -1,0 +1,181 @@
+/*
+ * Desktop Service App — Gradle build
+ *
+ * Produces an OSGi bundle JAR installable as a Cytoscape 3 App. Gson is embedded because the
+ * Cytoscape OSGi runtime does not export it. Cytoscape and OSGi APIs are compileOnly — the runtime
+ * supplies those. HTTP uses the JDK's java.net.http client, so nothing else is embedded.
+ */
+
+plugins {
+    id 'java'
+    id 'biz.aQute.bnd.builder'
+    id 'com.diffplug.spotless' version '6.25.0'
+}
+
+group = 'org.cytoscape'
+// The tree carries the version being worked toward, as a SNAPSHOT; a release build stamps the real
+// one via -PreleaseVersion, which `make release` passes.
+version = project.findProperty('releaseVersion') ?: '0.1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+// Every task runs every time, so a build never reports success on work it skipped.
+tasks.configureEach {
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << '-Xlint:deprecation'
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://nrnb-nexus.ucsd.edu/repository/cytoscape_releases/' }
+    maven { url = 'https://nrnb-nexus.ucsd.edu/repository/cytoscape_thirdparty/' }
+}
+
+// Oldest 3.10.x, so the app installs on any 3.10 desktop. 3.10.0 is the first release whose
+// bundled CX Support app reads and writes CX2.
+def cytoscapeVersion = '3.10.0'
+def gsonVersion = '2.11.0'
+
+// The hello-world service app used by the integration tier and runnable on its own (runFixture).
+// It is a test aid only and never goes into the bundle.
+sourceSets {
+    fixture {
+        java.srcDir 'src/fixture/java'
+    }
+}
+
+// 'embed' — physically bundled into the OSGi JAR; the Cytoscape runtime exports none of these.
+configurations {
+    embed
+    implementation.extendsFrom embed
+    fixtureImplementation.extendsFrom embed
+}
+
+def cytoscapeApis = [
+    'model-api', 'service-api', 'work-api', 'work-swing-api', 'application-api',
+    'swing-application-api', 'property-api', 'event-api', 'core-task-api'
+]
+
+dependencies {
+    cytoscapeApis.each { compileOnly "org.cytoscape:${it}:${cytoscapeVersion}" }
+    compileOnly "org.osgi:org.osgi.core:6.0.0"
+    compileOnly "org.slf4j:slf4j-api:1.7.36"
+
+    embed "com.google.code.gson:gson:${gsonVersion}"
+
+    fixtureImplementation "org.slf4j:slf4j-api:1.7.36"
+    fixtureImplementation platform("org.junit:junit-bom:5.11.4")
+    fixtureImplementation "org.junit.jupiter:junit-jupiter-api"
+
+    testImplementation sourceSets.fixture.output
+    testImplementation platform("org.junit:junit-bom:5.11.4")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testImplementation "org.mockito:mockito-core:4.11.0"
+
+    // SLF4J is compileOnly because Cytoscape supplies it through pax-logging; tests run outside
+    // that container.
+    testImplementation "org.slf4j:slf4j-api:1.7.36"
+    testRuntimeOnly "org.slf4j:slf4j-simple:1.7.36"
+
+    // Real CyNetwork/CyTable for the integration tier — no OSGi, no desktop.
+    testImplementation "org.cytoscape:model-impl:${cytoscapeVersion}"
+    testImplementation "org.cytoscape:model-impl:${cytoscapeVersion}:tests"
+    testImplementation "org.cytoscape:event-api:${cytoscapeVersion}:tests"
+    cytoscapeApis.each { testImplementation "org.cytoscape:${it}:${cytoscapeVersion}" }
+    testImplementation "org.osgi:org.osgi.core:6.0.0"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    dependsOn tasks.named('spotlessCheck')
+}
+
+jar {
+    archiveBaseName = 'desktop-service-app'
+
+    from({
+        configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
+    }) {
+        // Felix in Cytoscape 3.10.x fails to resolve a bundle carrying multi-release classes.
+        exclude 'META-INF/versions/**'
+        exclude 'META-INF/MANIFEST.MF'
+        exclude 'META-INF/*.SF'
+        exclude 'META-INF/*.DSA'
+        exclude 'META-INF/*.RSA'
+        // Cytoscape provides SLF4J through pax-logging; embedding it silently discards our logs.
+        exclude 'org/slf4j/**'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    bundle {
+        classpath = sourceSets.main.output + sourceSets.main.compileClasspath
+
+        bnd '''\
+            Bundle-SymbolicName: org.cytoscape.serviceapps
+            Bundle-Name: Desktop Service App
+            Bundle-Description: Install, render and run Cytoscape service apps in Cytoscape Desktop
+            Bundle-Activator: org.cytoscape.serviceapps.CyActivator
+
+            Import-Package: *;resolution:=optional
+
+            # Gson is physically embedded above. Naming it private stops BND, which sees it only on
+            # the classpath, from emitting it as an Import-Package entry.
+            Private-Package: org.cytoscape.serviceapps,org.cytoscape.serviceapps.*,\\
+                             com.google.gson,com.google.gson.*
+
+            Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=17))"
+        '''
+    }
+}
+
+// Tests: *IT is the integration tier, everything else the unit tier.
+test {
+    useJUnitPlatform()
+    exclude '**/*IT.class', '**/*IT$*.class'
+    testLogging { events 'passed', 'skipped', 'failed' }
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Integration tier — the fixture service app, real models, the built bundle.'
+    group = 'verification'
+    dependsOn tasks.named('jar')
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class', '**/*IT$*.class'
+    testLogging { events 'passed', 'skipped', 'failed' }
+    afterSuite { desc, result ->
+        if (desc.parent == null && result.testCount == 0) {
+            throw new GradleException('integrationTest matched no tests -- the *IT filter is broken')
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('integrationTest')
+}
+
+// Runs the hello-world service app on its own, for manual testing: ./gradlew runFixture
+tasks.register('runFixture', JavaExec) {
+    description = 'Runs the hello-world service app fixture on http://localhost:8765 (override with -Pport=N).'
+    group = 'application'
+    classpath = sourceSets.fixture.runtimeClasspath
+    mainClass = 'org.cytoscape.serviceapps.fixture.FixtureMain'
+    args = [project.findProperty('port') ?: '8765']
+}
+
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+        googleJavaFormat('1.17.0').aosp()
+        importOrder('java', 'javax', 'org', 'com', 'org.cytoscape', '\\#')
+        removeUnusedImports()
+    }
+}
