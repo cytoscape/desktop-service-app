@@ -2,7 +2,6 @@ package org.cytoscape.serviceapps.desktop;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -10,7 +9,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Cytoscape Desktop running in a Docker container, controlled through the {@code docker} CLI.
@@ -169,22 +167,16 @@ public final class DesktopContainer implements AutoCloseable {
         command.add("docker");
         command.addAll(List.of(args));
         try {
-            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            String output =
-                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (!process.waitFor(5, TimeUnit.MINUTES)) {
-                process.destroyForcibly();
-                throw new IllegalStateException("timed out: " + String.join(" ", command));
-            }
-            if (process.exitValue() != 0) {
+            TimedProcess.Result result = TimedProcess.run(command, Duration.ofMinutes(5));
+            if (result.exitCode() != 0) {
                 throw new IllegalStateException(
                         String.join(" ", command)
                                 + " failed ("
-                                + process.exitValue()
+                                + result.exitCode()
                                 + "): "
-                                + output);
+                                + result.output());
             }
-            return output;
+            return result.output();
         } catch (IOException e) {
             throw new IllegalStateException(
                     "could not run docker; make integration-test needs Docker: " + e.getMessage(),

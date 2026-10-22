@@ -22,7 +22,10 @@ public class ServiceAppStatusChecker {
         this.clients = clients;
     }
 
-    /** Calls the app's {@code GET /status}. The app is reachable when that returns 2xx. */
+    /**
+     * Calls the app's {@code GET /status}. The app is reachable when that returns 2xx, even with an
+     * empty or unexpected body; then {@code serviceStatus} is null and {@code message} says why.
+     */
     public Result check(String url) {
         try {
             ServiceStatus status = clients.forUrl(url).getStatus();
@@ -30,7 +33,9 @@ public class ServiceAppStatusChecker {
         } catch (ServiceAppException e) {
             Integer http =
                     e.httpStatus() == ServiceAppException.NO_RESPONSE ? null : e.httpStatus();
-            return new Result(false, http, null, e.getMessage());
+            // A 2xx reply means the service answered, even if its body isn't a status object.
+            boolean answered = http != null && http >= 200 && http < 300;
+            return new Result(answered, http, null, e.getMessage());
         } catch (IllegalArgumentException e) {
             return new Result(false, null, null, e.getMessage());
         }

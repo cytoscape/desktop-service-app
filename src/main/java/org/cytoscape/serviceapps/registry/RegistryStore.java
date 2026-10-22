@@ -1,11 +1,14 @@
 package org.cytoscape.serviceapps.registry;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -50,6 +53,23 @@ class RegistryStore {
         long lastRefreshedAt;
         boolean reachable = true;
         JsonObject lastValues = new JsonObject();
+
+        /** A deep copy, so a failed save can put the entry back as it was. */
+        Entry copy() {
+            Entry copy = new Entry();
+            copy.name = name;
+            copy.version = version;
+            copy.url = url;
+            copy.metadata =
+                    metadata == null
+                            ? null
+                            : Json.GSON.fromJson(Json.tree(metadata), ServiceMetadata.class);
+            copy.installedAt = installedAt;
+            copy.lastRefreshedAt = lastRefreshedAt;
+            copy.reachable = reachable;
+            copy.lastValues = lastValues == null ? new JsonObject() : lastValues.deepCopy();
+            return copy;
+        }
 
         InstalledServiceApp snapshot() {
             return new InstalledServiceApp(
@@ -114,7 +134,16 @@ class RegistryStore {
         Files.createDirectories(file.getParent());
         Path temp = Files.createTempFile(file.getParent(), FILE_NAME, ".tmp");
         try {
-            Files.writeString(temp, Json.write(document), StandardCharsets.UTF_8);
+            // Force the bytes to disk before the rename, so a power loss can't leave a renamed but
+            // empty file; then force the directory so the rename itself survives.
+            try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
+                ByteBuffer bytes =
+                        ByteBuffer.wrap(Json.write(document).getBytes(StandardCharsets.UTF_8));
+                while (bytes.hasRemaining()) {
+                    channel.write(bytes);
+                }
+                channel.force(true);
+            }
             try {
                 Files.move(
                         temp,
@@ -124,8 +153,18 @@ class RegistryStore {
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
             }
+            forceDirectory(file.getParent());
         } finally {
             Files.deleteIfExists(temp);
+        }
+    }
+
+    /** Best effort: some platforms, such as Windows, can't open a directory to force it. */
+    private static void forceDirectory(Path directory) {
+        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+            channel.force(true);
+        } catch (IOException e) {
+            LOGGER.debug("Could not sync {} to disk: {}", directory, e.getMessage());
         }
     }
 }

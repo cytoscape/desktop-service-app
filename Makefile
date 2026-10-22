@@ -13,7 +13,7 @@ help:
 	@grep -E '^## [a-z-]+:' $(MAKEFILE_LIST) | sed 's/^## /  /' | sort
 
 ## build: compile and package the OSGi bundle jar
-build:
+build: clean
 	$(GRADLE) jar
 	@ls -1 build/libs/*.jar | sed 's|^|  -> |'
 

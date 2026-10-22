@@ -117,6 +117,26 @@ class ModelParsingTest {
     }
 
     @Test
+    void aResultEntryThatIsNotAnActionIsRejected() {
+        for (String result :
+                new String[] {
+                    "[null,{\"action\":\"updateSelection\",\"data\":{}}]",
+                    "[\"updateSelection\"]",
+                    "[[1]]",
+                    "[{\"data\":{}}]",
+                    "[{\"action\":\" \",\"data\":{}}]"
+                }) {
+            TaskStatus status =
+                    Json.parse(
+                            "{\"status\":\"complete\",\"result\":" + result + "}",
+                            TaskStatus.class);
+
+            JsonParseException e = assertThrows(JsonParseException.class, status::actions, result);
+            assertTrue(e.getMessage().startsWith("task result entry 1 "), e.getMessage());
+        }
+    }
+
+    @Test
     void anEmptyBodyIsRejected() {
         assertThrows(JsonParseException.class, () -> Json.parse("", ServiceMetadata.class));
         assertThrows(JsonParseException.class, () -> Json.parse("null", ServiceMetadata.class));

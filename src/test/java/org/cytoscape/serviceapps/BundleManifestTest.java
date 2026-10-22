@@ -3,6 +3,7 @@ package org.cytoscape.serviceapps;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
@@ -24,10 +25,19 @@ class BundleManifestTest {
         Path libs = Path.of("build", "libs");
         assertTrue(Files.isDirectory(libs), "run `make build` first: " + libs.toAbsolutePath());
         try (Stream<Path> jars = Files.list(libs)) {
-            return jars.filter(p -> p.getFileName().toString().startsWith("desktop-service-app"))
-                    .filter(p -> p.getFileName().toString().endsWith(".jar"))
-                    .findFirst()
-                    .orElseThrow(() -> new AssertionError("no bundle jar in " + libs));
+            List<Path> bundles =
+                    jars.filter(p -> p.getFileName().toString().startsWith("desktop-service-app"))
+                            .filter(p -> p.getFileName().toString().endsWith(".jar"))
+                            .toList();
+            // More than one means a stale jar from an earlier build; checking either is a guess.
+            assertEquals(
+                    1,
+                    bundles.size(),
+                    "expected exactly one bundle jar in "
+                            + libs
+                            + " (run `make clean`): "
+                            + bundles);
+            return bundles.get(0);
         }
     }
 

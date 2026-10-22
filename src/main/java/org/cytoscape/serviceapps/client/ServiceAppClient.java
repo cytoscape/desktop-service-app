@@ -7,7 +7,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
@@ -65,9 +64,9 @@ public class ServiceAppClient {
      */
     public String submit(TaskRequest request) {
         HttpTransport.Response response = call("POST", baseUrl, Json.write(request));
-        JsonObject reply = parse(response, JsonObject.class, "task submission");
-        JsonElement id = reply.get("id");
-        if (id == null || id.isJsonNull() || id.getAsString().isBlank()) {
+        JsonElement reply = parse(response, JsonElement.class, "task submission");
+        JsonElement id = reply.isJsonObject() ? reply.getAsJsonObject().get("id") : null;
+        if (id == null || !id.isJsonPrimitive() || id.getAsString().isBlank()) {
             throw new ServiceAppException(
                     response.status(), "service accepted the task but returned no task id");
         }
@@ -175,6 +174,12 @@ public class ServiceAppClient {
                 || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
                 || uri.getHost() == null) {
             throw new IllegalArgumentException("not an http or https URL: " + url);
+        }
+        // Endpoint URLs are built by appending to this one, so a query or fragment would end up
+        // in the middle of every endpoint's address.
+        if (uri.getRawQuery() != null || uri.getRawFragment() != null) {
+            throw new IllegalArgumentException(
+                    "a service app URL can't have a query (?...) or fragment (#...): " + url);
         }
         return trimmed;
     }

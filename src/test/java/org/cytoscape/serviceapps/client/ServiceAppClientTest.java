@@ -158,6 +158,47 @@ class ServiceAppClientTest {
     }
 
     @Test
+    void aSubmitReplyWhoseIdIsNotTextFailsAsAServiceError() {
+        for (String reply :
+                new String[] {
+                    "{\"id\":{\"a\":1}}", "{\"id\":[1]}", "[]", "\"x\"", "{\"id\":\" \"}"
+                }) {
+            transport.reply(202, reply);
+
+            ServiceAppException e =
+                    assertThrows(
+                            ServiceAppException.class,
+                            () -> client.submit(new TaskRequest()),
+                            reply);
+            assertTrue(e.getMessage().contains("no task id"), reply + ": " + e.getMessage());
+        }
+    }
+
+    @Test
+    void aNumericSubmitIdIsAccepted() {
+        transport.reply(202, "{\"id\":42}");
+
+        assertEquals("42", client.submit(new TaskRequest()));
+    }
+
+    @Test
+    void aUrlWithAQueryOrFragmentIsRejected() {
+        for (String url :
+                new String[] {
+                    "https://h.example/app?key=1",
+                    "https://h.example/app#part",
+                    "https://h.example/app?"
+                }) {
+            IllegalArgumentException e =
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> new ServiceAppClient(url, transport),
+                            url);
+            assertTrue(e.getMessage().contains("can't have a query"), e.getMessage());
+        }
+    }
+
+    @Test
     void aTaskIdIsRequired() {
         assertThrows(IllegalArgumentException.class, () -> client.getTaskStatus(" "));
     }

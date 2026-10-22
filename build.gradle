@@ -159,7 +159,8 @@ def defaultInstallerUrl =
         'https://cytoscape-builds.ucsd.edu/Cytoscape-3.10.5/2026_09_09/rc2/Cytoscape_3_10_5_unix.sh'
 def defaultInstallerSha256 = 'e9d97c59a52d59b15f9e91a46d4df6b089fd896b54dbc9c36c8799a35b3082e2'
 def setting = { String property, String env, String fallback ->
-    def value = project.findProperty(property) ?: System.getenv(env)
+    // An explicitly empty property is kept: an empty checksum turns the check off.
+    def value = project.hasProperty(property) ? project.property(property) : System.getenv(env)
     return value != null ? value.toString() : fallback
 }
 def installerUrl = setting('cytoscapeInstallerUrl', 'CYTOSCAPE_INSTALLER_URL', defaultInstallerUrl)

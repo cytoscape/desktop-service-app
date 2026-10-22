@@ -11,6 +11,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # Uploading the jar to the release needs write access; nothing else does.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -26,8 +29,10 @@ jobs:
       # A typo in the tag stops the release here rather than producing a jar with a bogus version.
       - name: Extract and validate version from tag
         id: rel
+        # The tag reaches the shell as data, never as script text.
+        env:
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
           case "$TAG" in
             v*) VERSION="${TAG#v}" ;;
             *)
@@ -69,7 +74,8 @@ jobs:
 
       - name: Upload the jar to the release
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "$TAG" \
             "build/libs/desktop-service-app-${{ steps.rel.outputs.version }}.jar" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}

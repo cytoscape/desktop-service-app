@@ -10,6 +10,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Least privilege: the job only checks out code and uploads test reports.
+    permissions:
+      contents: read
     # A build that hangs should fail in minutes rather than occupy a runner for six hours.
     timeout-minutes: 30
 

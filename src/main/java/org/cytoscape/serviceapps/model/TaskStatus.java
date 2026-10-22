@@ -42,7 +42,8 @@ public class TaskStatus {
     /**
      * The result as an ordered list of actions.
      *
-     * @throws JsonParseException if {@code result} is present but not a list of actions
+     * @throws JsonParseException if {@code result} is present but not a list of actions, or an
+     *     entry is not an action object with an {@code action} name
      */
     public List<ResultAction> actions() {
         if (result == null || result.isJsonNull()) {
@@ -53,8 +54,18 @@ public class TaskStatus {
         }
         JsonArray array = result.getAsJsonArray();
         List<ResultAction> actions = new ArrayList<>(array.size());
-        for (JsonElement element : array) {
-            actions.add(Json.GSON.fromJson(element, ResultAction.class));
+        for (int i = 0; i < array.size(); i++) {
+            JsonElement element = array.get(i);
+            if (element == null || !element.isJsonObject()) {
+                throw new JsonParseException(
+                        "task result entry " + (i + 1) + " is not an action: " + element);
+            }
+            ResultAction action = Json.GSON.fromJson(element, ResultAction.class);
+            if (action.action == null || action.action.isBlank()) {
+                throw new JsonParseException(
+                        "task result entry " + (i + 1) + " names no action: " + element);
+            }
+            actions.add(action);
         }
         return actions;
     }

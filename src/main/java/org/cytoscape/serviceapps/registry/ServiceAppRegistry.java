@@ -92,7 +92,7 @@ public class ServiceAppRegistry {
             entry.reachable = true;
             entry.lastValues = existing == null ? new JsonObject() : existing.lastValues;
             apps.put(name, entry);
-            persist();
+            persistOrRestore(name, existing);
             event =
                     new RegistryEvent(
                             existing == null
@@ -108,10 +108,11 @@ public class ServiceAppRegistry {
      */
     public boolean uninstall(String name) {
         synchronized (this) {
-            if (apps.remove(name) == null) {
+            RegistryStore.Entry removed = apps.remove(name);
+            if (removed == null) {
                 return false;
             }
-            persist();
+            persistOrRestore(name, removed);
         }
         fire(new RegistryEvent(RegistryEvent.Type.REMOVED, name));
         return true;
@@ -129,11 +130,12 @@ public class ServiceAppRegistry {
             if (entry == null) {
                 return false;
             }
+            RegistryStore.Entry before = entry.copy();
             entry.version = version;
             entry.metadata = copy(meta);
             entry.lastRefreshedAt = System.currentTimeMillis();
             entry.reachable = true;
-            persist();
+            persistOrRestore(name, before);
         }
         fire(new RegistryEvent(RegistryEvent.Type.UPDATED, name));
         return true;
@@ -151,8 +153,9 @@ public class ServiceAppRegistry {
             if (entry.reachable == reachable) {
                 return true;
             }
+            RegistryStore.Entry before = entry.copy();
             entry.reachable = reachable;
-            persist();
+            persistOrRestore(name, before);
         }
         fire(new RegistryEvent(RegistryEvent.Type.UPDATED, name));
         return true;
@@ -173,8 +176,9 @@ public class ServiceAppRegistry {
             if (entry == null) {
                 return false;
             }
+            RegistryStore.Entry before = entry.copy();
             entry.lastValues = values == null ? new JsonObject() : values.deepCopy();
-            persist();
+            persistOrRestore(name, before);
         }
         fire(new RegistryEvent(RegistryEvent.Type.UPDATED, name));
         return true;
@@ -188,10 +192,19 @@ public class ServiceAppRegistry {
         listeners.remove(listener);
     }
 
-    private void persist() {
+    /**
+     * Saves every app. If the save fails, puts {@code name}'s entry back as it was ({@code before},
+     * or absent when null) and rethrows, so memory never holds a change the file doesn't.
+     */
+    private void persistOrRestore(String name, RegistryStore.Entry before) {
         try {
             store.save(apps);
         } catch (IOException e) {
+            if (before == null) {
+                apps.remove(name);
+            } else {
+                apps.put(name, before);
+            }
             throw new UncheckedIOException("could not save installed service apps", e);
         }
     }
