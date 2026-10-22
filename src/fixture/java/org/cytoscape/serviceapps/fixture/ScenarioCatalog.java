@@ -235,6 +235,51 @@ public final class ScenarioCatalog {
         undeclared.add(exampleAction("updateSelection"));
         add(all, "result-undeclared-action", declaring(base(), "updateLayouts"), undeclared);
 
+        // Results that fail while being applied (fail fast)
+        JsonArray failFast = new JsonArray();
+        failFast.add(exampleAction("updateLayouts"));
+        failFast.add(
+                action("updateTables", json("{\"id\":\"network\",\"columns\":[],\"rows\":{}}")));
+        failFast.add(exampleAction("updateSelection"));
+        add(
+                all,
+                "result-fail-fast",
+                declaring(base(), "updateLayouts", "updateTables", "updateSelection"),
+                failFast);
+
+        JsonArray invalidCx2 = new JsonArray();
+        invalidCx2.add(
+                action(
+                        "updateNetwork",
+                        json(
+                                "[{\"CXVersion\":\"2.0\"},{\"nodes\":[{\"id\":0}]},"
+                                        + "{\"edges\":[{\"id\":9,\"s\":0,\"t\":42}]}]")));
+        add(all, "result-invalid-cx2", declaring(base(), "updateNetwork"), invalidCx2);
+
+        JsonArray malformedLayouts = new JsonArray();
+        malformedLayouts.add(action("updateLayouts", json("{\"id\":7,\"x\":1,\"y\":2}")));
+        add(all, "result-malformed-layouts", declaring(base(), "updateLayouts"), malformedLayouts);
+
+        JsonArray unknownColumnType = new JsonArray();
+        unknownColumnType.add(
+                action(
+                        "updateTables",
+                        json(
+                                "{\"id\":\"node\",\"columns\":[{\"id\":\"shape\",\"type\":\"complex\"}],"
+                                        + "\"rows\":{\"1\":{\"shape\":\"round\"}}}")));
+        add(
+                all,
+                "result-unknown-column-type",
+                declaring(base(), "updateTables"),
+                unknownColumnType);
+
+        JsonArray iframe = new JsonArray();
+        iframe.add(
+                action(
+                        "openURL",
+                        json("{\"url\":\"https://www.cytoscape.org\",\"target\":\"frame\"}")));
+        add(all, "result-open-url-iframe", declaring(base(), "openURL"), iframe);
+
         // Failure behaviours
         all.put(
                 "failure-slow",

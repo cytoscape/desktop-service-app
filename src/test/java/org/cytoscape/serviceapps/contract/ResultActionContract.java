@@ -16,11 +16,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The result action rendering contract (#44 test spec B), written once against {@link
  * ContractHarness}. Each scenario installs a fixture app whose result is the spec's example for one
  * action, runs it, and checks Desktop's state. The second network must never change.
+ *
+ * <p>Failures are fail-fast, and their messages are asserted exactly. Every entry path runs these
+ * same assertions, so the menu path and {@code task call} report identical messages.
  */
 public abstract class ResultActionContract {
 
@@ -46,6 +50,12 @@ public abstract class ResultActionContract {
     private Outcome succeed(String scenario, Ui ui) {
         Outcome outcome = h.run(scenario, ui);
         assertTrue(outcome.succeeded(), scenario + ": " + outcome.message());
+        return outcome;
+    }
+
+    private Outcome fail(String scenario, Ui ui) {
+        Outcome outcome = h.run(scenario, ui);
+        assertFalse(outcome.succeeded(), scenario + " should fail: " + outcome.message());
         return outcome;
     }
 
@@ -77,6 +87,7 @@ public abstract class ResultActionContract {
 
     @Test
     void updateLayoutsWithATargetViewChangesOnlyThatView() {
+        assumeTrue(h.supportsViewTarget(), "this harness always targets every view");
         h.addTargetView();
         double[] secondBefore = h.position(1, 7);
 
@@ -106,7 +117,7 @@ public abstract class ResultActionContract {
     }
 
     @Test
-    void updateTablesCreatesColumnsWritesRowsByIdAndCountsUnknownIds() {
+    void updateTablesCreatesColumnsWritesRowsByIdAndNotesUnknownIds() {
         Outcome outcome = succeed("result-update-tables", Ui.CURRENT_VIEW);
 
         assertEquals(Integer.class, h.nodeColumnType("count"));
@@ -114,19 +125,51 @@ public abstract class ResultActionContract {
         assertEquals("lowest", h.nodeValue("notes", 1));
         assertEquals(24, h.nodeValue("count", 2));
         assertNull(h.nodeValue("count", 7));
-        assertTrue(outcome.message().contains("1 row(s)"), outcome.message());
+        assertEquals(
+                "Applied updateTables. Notes: updateTables skipped 1 row(s) with IDs not in the"
+                        + " network",
+                outcome.message());
     }
 
     @Test
-    void updateTablesReportsATypeConflictAndLeavesThatColumnAlone() {
+    void updateTablesWithATypeConflictFailsBeforeWritingAnything() {
         h.addNodeColumn("notes", Integer.class);
+        Map<String, Object> before = h.targetState();
 
-        Outcome outcome = succeed("result-update-tables", Ui.CURRENT_VIEW);
+        Outcome outcome = fail("result-update-tables", Ui.CURRENT_VIEW);
 
-        assertEquals(Integer.class, h.nodeColumnType("notes"));
-        assertNull(h.nodeValue("notes", 1));
-        assertEquals(10, h.nodeValue("count", 1));
-        assertTrue(outcome.message().contains("'notes'"), outcome.message());
+        assertEquals(
+                "Rendering failed at updateTables (1 of 1): updateTables column 'notes' is integer"
+                        + " in Desktop but string in the result. Nothing was applied.",
+                outcome.message());
+        assertEquals(before, h.targetState());
+        assertNull(h.nodeColumnType("count"), "no column of the failing action is written");
+    }
+
+    @Test
+    void updateTablesWithAnUnknownColumnTypeFails() {
+        Map<String, Object> before = h.targetState();
+
+        Outcome outcome = fail("result-unknown-column-type", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at updateTables (1 of 1): updateTables column 'shape' has unknown"
+                        + " type 'complex'. Nothing was applied.",
+                outcome.message());
+        assertEquals(before, h.targetState());
+    }
+
+    @Test
+    void aFailingActionStopsTheRunAndLaterActionsAreNotApplied() {
+        Outcome outcome = fail("result-fail-fast", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at updateTables (2 of 3): updateTables can only update the node or"
+                        + " edge table, not 'network'. Applied: updateLayouts. Not applied:"
+                        + " updateSelection.",
+                outcome.message());
+        assertArrayEquals(new double[] {25.2, -473.6}, xy(0, 7), "updateLayouts stays applied");
+        assertFalse(h.nodeSelected(15), "updateSelection was not applied");
     }
 
     @Test
@@ -143,10 +186,14 @@ public abstract class ResultActionContract {
     }
 
     @Test
-    void updateNetworkOnTheWholeNetworkUpdatesInPlace() {
+    void updateNetworkOnTheWholeNetworkUpdatesInPlaceAndNotesWhatItRemoved() {
         long suid = h.targetSuid();
 
-        succeed("result-update-network", Ui.CURRENT_VIEW);
+        Outcome outcome = succeed("result-update-network", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Applied updateNetwork. Notes: updateNetwork removed 5 node(s) and 2 edge(s)",
+                outcome.message());
 
         assertEquals(suid, h.targetSuid());
         assertEquals(2, h.nodeCount());
@@ -163,7 +210,7 @@ public abstract class ResultActionContract {
     void updateNetworkOnASelectionRemovesOnlySentElements() {
         h.select(0, 1, 7);
 
-        succeed("result-update-network", Ui.CURRENT_VIEW);
+        Outcome outcome = succeed("result-update-network", Ui.CURRENT_VIEW);
 
         assertFalse(h.hasNode(7), "sent and absent from the result: removed");
         for (long id : List.of(2L, 15L, 25L, 100L)) {
@@ -172,10 +219,94 @@ public abstract class ResultActionContract {
         assertTrue(h.hasEdge(3), "edges weren't selected, so none were sent");
         assertFalse(h.hasEdge(6), "edge 6 goes with its endpoint, node 7");
         assertEquals("node 1", h.nodeValue("name", 0));
+        assertEquals(
+                "Applied updateNetwork. Notes: updateNetwork removed 1 node(s) and 0 edge(s)",
+                outcome.message());
     }
 
     @Test
-    void addTablesChangesNothingAndWarns() {
+    void updateNetworkWithATypeConflictFailsWithTheNetworkUnchanged() {
+        h.addNodeColumn("age", String.class);
+        long suid = h.targetSuid();
+        Map<String, Object> before = h.targetState();
+
+        Outcome outcome = fail("result-update-network", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at updateNetwork (1 of 1): updateNetwork attribute 'age' is string"
+                        + " in Desktop but integer in the result. Nothing was applied.",
+                outcome.message());
+        assertEquals(suid, h.targetSuid());
+        assertEquals(before, h.targetState());
+    }
+
+    @Test
+    void updateNetworkWithInvalidCx2FailsWithTheNetworkUnchanged() {
+        Map<String, Object> before = h.targetState();
+
+        Outcome outcome = fail("result-invalid-cx2", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at updateNetwork (1 of 1): updateNetwork edge 9 connects nodes that"
+                        + " aren't in the result. Nothing was applied.",
+                outcome.message());
+        assertEquals(before, h.targetState());
+    }
+
+    @Test
+    void updateNetworkOnAnHcxNetworkIsSkippedWithANote() {
+        h.setNetworkAttribute("ndexSchema", "hierarchy_v0.1");
+        Map<String, Object> before = h.targetState();
+
+        Outcome outcome = succeed("result-update-network", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "No result actions applied. Notes: updateNetwork skipped: HCX networks can't be"
+                        + " updated in place yet",
+                outcome.message());
+        assertEquals(before, h.targetState());
+    }
+
+    @Test
+    void malformedActionDataFailsWithNothingChanged() {
+        Map<String, Object> before = h.targetState();
+
+        Outcome outcome = fail("result-malformed-layouts", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at updateLayouts (1 of 1): updateLayouts data is not a list of node"
+                        + " positions. Nothing was applied.",
+                outcome.message());
+        assertEquals(before, h.targetState());
+    }
+
+    @Test
+    void openUrlWithATargetFailsAndOpensNothing() {
+        Outcome outcome = fail("result-open-url-iframe", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at openURL (1 of 1): openURL target 'frame' isn't supported in"
+                        + " Cytoscape Desktop; only a null or absent target opens the web browser."
+                        + " Nothing was applied.",
+                outcome.message());
+        assertEquals(List.of(), h.openedUrls());
+    }
+
+    @Test
+    void aBrowserThatCantOpenFailsTheRun() {
+        assumeTrue(h.canFailBrowser(), "this harness can't make the browser fail");
+        h.failBrowser();
+
+        Outcome outcome = fail("result-open-url", Ui.CURRENT_VIEW);
+
+        assertEquals(
+                "Rendering failed at openURL (1 of 1): no web browser could be opened for"
+                        + " https://www.cytoscape.org. Nothing was applied.",
+                outcome.message());
+    }
+
+    @Test
+    void addTablesIsSkippedWithANoteAndChangesNothing() {
         Map<String, Object> before = h.targetState();
         int collections = h.collectionCount();
 
@@ -183,15 +314,20 @@ public abstract class ResultActionContract {
 
         assertEquals(before, h.targetState());
         assertEquals(collections, h.collectionCount());
-        assertTrue(outcome.message().contains("addTables"), outcome.message());
+        assertEquals(
+                "No result actions applied. Notes: addTables is not supported yet and was skipped",
+                outcome.message());
     }
 
     @Test
-    void anUnknownActionIsReportedAndTheNextOneStillApplies() {
-        Outcome outcome = succeed("result-unknown-action", Ui.CURRENT_VIEW);
+    void anUnknownActionFailsBeforeAnythingIsApplied() {
+        Outcome outcome = fail("result-unknown-action", Ui.CURRENT_VIEW);
 
-        assertTrue(outcome.message().contains("explodeNetwork"), outcome.message());
-        assertTrue(h.nodeSelected(15));
+        assertEquals(
+                "Rendering failed: the result asks for unknown action 'explodeNetwork'. Nothing was"
+                        + " applied.",
+                outcome.message());
+        assertFalse(h.nodeSelected(15), "the following updateSelection was not applied");
     }
 
     @Test
@@ -220,10 +356,34 @@ public abstract class ResultActionContract {
     }
 
     @Test
-    void aNetworkActionWithNoNetworkOpenFailsTheRunNamingTheAction() {
-        Outcome outcome = h.run("input-none", Ui.NO_NETWORK);
+    void aNetworkActionWithNoNetworkFailsTheRunNamingTheAction() {
+        Outcome outcome = fail("input-none", Ui.NO_NETWORK);
 
-        assertFalse(outcome.succeeded());
-        assertTrue(outcome.message().contains("updateLayouts"), outcome.message());
+        assertEquals(
+                "Rendering failed: the result asks to updateLayouts, which needs a network, and no"
+                        + " network was targeted. Nothing was applied.",
+                outcome.message());
+    }
+
+    @Test
+    void aFailedServiceTaskFailsTheRunWithTheServiceMessage() {
+        Map<String, Object> before = h.targetState();
+
+        Outcome outcome = fail("failure-failed", Ui.CURRENT_VIEW);
+
+        assertEquals("Service task failed: Algorithm failed: bad input", outcome.message());
+        assertEquals(before, h.targetState());
+    }
+
+    @Test
+    void aRefusedTaskFailsTheRun() {
+        Outcome outcome = fail("failure-submit-500", Ui.CURRENT_VIEW);
+
+        assertTrue(
+                outcome.message()
+                        .startsWith(
+                                "Service task failed: Fixture failure-submit-500 didn't accept the"
+                                        + " task: "),
+                outcome.message());
     }
 }

@@ -38,6 +38,15 @@ public class AddNetworksHandler implements ActionHandler {
 
     @Override
     public void apply(JsonElement data, UIInfo ui, RenderReport report) {
+        if (!data.isJsonArray()) {
+            throw new IllegalArgumentException("addNetworks data is not a list of CX2 networks");
+        }
+        for (JsonElement network : data.getAsJsonArray()) {
+            if (!network.isJsonArray()) {
+                throw new IllegalArgumentException(
+                        "addNetworks has an entry that isn't a CX2 network");
+            }
+        }
         List<CyNetwork> added = new ArrayList<>();
         for (JsonElement network : data.getAsJsonArray()) {
             added.addAll(cx2.importAndRegister(network.getAsJsonArray(), "Service app result"));

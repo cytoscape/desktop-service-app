@@ -35,6 +35,9 @@ public class SelectionHandler implements ActionHandler {
 
     @Override
     public void apply(JsonElement data, UIInfo ui, RenderReport report) {
+        if (!data.isJsonObject()) {
+            throw new IllegalArgumentException("updateSelection data is not {nodes, edges}");
+        }
         JsonObject object = data.getAsJsonObject();
         CyNetwork network = ui.targetNetwork();
         IdMapper ids = IdMapper.of(network);

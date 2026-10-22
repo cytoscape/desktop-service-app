@@ -4,15 +4,24 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** What happened while applying a result: actions applied, notes, and problems. */
+/**
+ * What happened while applying a result: the actions applied and any notes. A failing action
+ * doesn't appear here: it stops the run with a {@link RenderException}.
+ */
 public class RenderReport {
 
     private final List<String> applied = new ArrayList<>();
     private final List<String> notes = new ArrayList<>();
-    private final List<String> problems = new ArrayList<>();
+    private boolean skipped;
 
-    void applied(String action) {
-        applied.add(action);
+    void start() {
+        skipped = false;
+    }
+
+    void finish(String action) {
+        if (!skipped) {
+            applied.add(action);
+        }
     }
 
     /** Something the user should know that didn't stop the action, such as skipped rows. */
@@ -20,9 +29,10 @@ public class RenderReport {
         notes.add(message);
     }
 
-    /** An action that failed or was not understood; the remaining actions still ran. */
-    public void problem(String message) {
-        problems.add(message);
+    /** The action was deliberately not applied, such as addTables; the run still completes. */
+    public void skip(String message) {
+        notes.add(message);
+        skipped = true;
     }
 
     public List<String> applied() {
@@ -33,10 +43,6 @@ public class RenderReport {
         return Collections.unmodifiableList(notes);
     }
 
-    public List<String> problems() {
-        return Collections.unmodifiableList(problems);
-    }
-
     /** One line for the run's status message. */
     public String summary() {
         StringBuilder text = new StringBuilder();
@@ -44,9 +50,6 @@ public class RenderReport {
                 applied.isEmpty()
                         ? "No result actions applied"
                         : "Applied " + String.join(", ", applied));
-        if (!problems.isEmpty()) {
-            text.append(". Problems: ").append(String.join("; ", problems));
-        }
         if (!notes.isEmpty()) {
             text.append(". Notes: ").append(String.join("; ", notes));
         }

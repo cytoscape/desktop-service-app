@@ -23,7 +23,8 @@ import org.cytoscape.work.Tunable;
 public class InstallCommandTask extends JsonResultTask {
 
     public static final String NAME = "install";
-    public static final String DESCRIPTION = "Install or upgrade a service app";
+    public static final String DESCRIPTION =
+            "Install or upgrade a service app from its service URL";
     public static final String LONG_DESCRIPTION =
             "Fetches the service app's metadata from url, checks that it reports the given name"
                     + " and version, and installs it. An installed app with the same name is"

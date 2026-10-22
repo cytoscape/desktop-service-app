@@ -52,6 +52,7 @@ import org.cytoscape.work.TaskIterator;
 import org.cytoscape.work.TunableValidator;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -86,6 +87,7 @@ public class JvmMenuHarness implements ContractHarness {
     private ServiceAppRegistry registry;
     private ServiceAppLifecycle lifecycle;
     private int resets;
+    private volatile boolean browserFails;
 
     public JvmMenuHarness(FixtureServer fixture, Path dir) {
         this.fixture = fixture;
@@ -136,9 +138,13 @@ public class JvmMenuHarness implements ContractHarness {
         currentView = target.view;
 
         OpenBrowser browser = mock(OpenBrowser.class);
-        when(browser.openURL(anyString()))
+        browserFails = false;
+        when(browser.openURL(anyString(), anyBoolean()))
                 .thenAnswer(
                         call -> {
+                            if (browserFails) {
+                                return false;
+                            }
                             opened.add(call.getArgument(0));
                             return true;
                         });
@@ -202,6 +208,25 @@ public class JvmMenuHarness implements ContractHarness {
     @Override
     public void addNodeColumn(String name, Class<?> type) {
         target.network.getDefaultNodeTable().createColumn(name, type, false);
+    }
+
+    @Override
+    public void setNetworkAttribute(String name, String value) {
+        var table = target.network.getDefaultNetworkTable();
+        if (table.getColumn(name) == null) {
+            table.createColumn(name, String.class, false);
+        }
+        target.network.getRow(target.network).set(name, value);
+    }
+
+    @Override
+    public boolean canFailBrowser() {
+        return true;
+    }
+
+    @Override
+    public void failBrowser() {
+        browserFails = true;
     }
 
     @Override

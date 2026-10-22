@@ -17,7 +17,8 @@ import org.cytoscape.work.TaskMonitor;
 public class ListCommandTask extends JsonResultTask {
 
     public static final String NAME = "list";
-    public static final String DESCRIPTION = "List the installed service apps";
+    public static final String DESCRIPTION =
+            "List installed service apps (remote algorithms) that can be run in Desktop";
     public static final String LONG_DESCRIPTION =
             "Returns every installed service app as a JSON array of {name, version, url,"
                     + " reachable}, sorted by name. reachable is the result of the most recent"

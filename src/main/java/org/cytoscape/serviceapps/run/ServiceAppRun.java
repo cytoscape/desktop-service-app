@@ -35,8 +35,10 @@ import org.cytoscape.work.TaskMonitor;
  * </ol>
  *
  * Cancel deletes the remote task and applies nothing. A failed clean-up is logged and the results
- * stay. The run fails after {@link RunSettings#MAX_FAILED_POLLS} failed status checks in a row, or
- * when it takes longer than the configured timeout.
+ * stay. A failure of the service starts with {@link #SERVICE_FAILED}; a failure while applying the
+ * result starts with "Rendering failed". The same message reaches the menu path (Desktop's task
+ * error dialog) and {@code task status}. The run fails after {@link RunSettings#MAX_FAILED_POLLS}
+ * failed status checks in a row, or when it takes longer than the configured timeout.
  *
  * @see <a
  *     href="https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)">Specification</a>
@@ -44,6 +46,9 @@ import org.cytoscape.work.TaskMonitor;
 public class ServiceAppRun extends AbstractTask {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ServiceAppRun.class);
+
+    /** How every failure of the service itself starts, on both entry paths. */
+    public static final String SERVICE_FAILED = "Service task failed: ";
 
     /** Everything a run needs. */
     public record Plan(
@@ -120,7 +125,8 @@ public class ServiceAppRun extends AbstractTask {
             remoteId = client.submit(built.request());
         } catch (ServiceAppException e) {
             throw new RunException(
-                    plan.appName() + " didn't accept the task: " + e.getMessage(), e);
+                    SERVICE_FAILED + plan.appName() + " didn't accept the task: " + e.getMessage(),
+                    e);
         }
 
         TaskStatus status = poll(monitor, limits, deadline);
@@ -133,7 +139,8 @@ public class ServiceAppRun extends AbstractTask {
             result = client.getTaskResult(remoteId);
         } catch (ServiceAppException e) {
             deleteQuietly();
-            throw new RunException("Could not fetch the result: " + e.getMessage(), e);
+            throw new RunException(
+                    SERVICE_FAILED + "could not fetch the result: " + e.getMessage(), e);
         }
         if (result.isFailed() || status.isFailed()) {
             deleteQuietly();
@@ -141,7 +148,11 @@ public class ServiceAppRun extends AbstractTask {
                     result.message != null && !result.message.isBlank()
                             ? result.message
                             : status.message;
-            throw new RunException(plan.appName() + " reported a failure: " + message);
+            throw new RunException(
+                    SERVICE_FAILED
+                            + (message == null || message.isBlank()
+                                    ? plan.appName() + " reported a failure"
+                                    : message));
         }
         if (cancelled) {
             deleteQuietly();
@@ -162,15 +173,15 @@ public class ServiceAppRun extends AbstractTask {
             throw new RunException(e.getMessage(), e);
         } catch (RuntimeException e) {
             deleteQuietly();
-            throw new RunException("Could not apply the result: " + e.getMessage(), e);
+            throw new RunException("Rendering failed: " + e.getMessage(), e);
         }
         deleteQuietly();
 
         progress = 100;
         monitor.setProgress(1.0);
         monitor.setStatusMessage(report.summary());
-        if (!report.problems().isEmpty()) {
-            monitor.showMessage(TaskMonitor.Level.WARN, report.summary());
+        if (!report.notes().isEmpty()) {
+            monitor.showMessage(TaskMonitor.Level.INFO, report.summary());
         }
         listener.stateChanged(TaskStatus.COMPLETE, 100, report.summary());
     }
@@ -199,7 +210,12 @@ public class ServiceAppRun extends AbstractTask {
                 if (failedPolls >= RunSettings.MAX_FAILED_POLLS) {
                     deleteQuietly();
                     throw new RunException(
-                            "Lost contact with " + plan.appName() + ": " + e.getMessage(), e);
+                            SERVICE_FAILED
+                                    + "lost contact with "
+                                    + plan.appName()
+                                    + ": "
+                                    + e.getMessage(),
+                            e);
                 }
                 status = null;
             }
@@ -220,7 +236,8 @@ public class ServiceAppRun extends AbstractTask {
             if (System.nanoTime() > deadline) {
                 deleteQuietly();
                 throw new RunException(
-                        plan.appName()
+                        SERVICE_FAILED
+                                + plan.appName()
                                 + " took longer than "
                                 + describe(limits.timeout())
                                 + " and was stopped.");

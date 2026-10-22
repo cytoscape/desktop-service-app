@@ -104,6 +104,24 @@ public final class CyRest {
         return new Reply(json.get("data"), json.get("errors"));
     }
 
+    /**
+     * Calls a CyREST REST endpoint, such as {@code GET /v1/networks}, with an optional JSON body.
+     *
+     * @return the parsed reply, or null when it is empty
+     */
+    public JsonElement rest(String method, String path, JsonElement body) throws IOException {
+        HttpRequest.BodyPublisher publisher =
+                body == null
+                        ? HttpRequest.BodyPublishers.noBody()
+                        : HttpRequest.BodyPublishers.ofString(body.toString());
+        String reply =
+                send(
+                        HttpRequest.newBuilder(URI.create(baseUrl + path))
+                                .header("Content-Type", "application/json")
+                                .method(method, publisher));
+        return reply.isBlank() ? null : JsonParser.parseString(reply);
+    }
+
     private String commandUrl(String namespace, String command) {
         return baseUrl + "/v1/commands/" + namespace + "/" + encode(command).replace("+", "%20");
     }

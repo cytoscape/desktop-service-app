@@ -30,7 +30,8 @@ import org.cytoscape.view.presentation.property.BasicVisualLexicon;
  * identity (SUID, views, style).
  *
  * <ul>
- *   <li>The CX2 is validated before anything changes.
+ *   <li>The CX2, and every value's type against the existing columns, are checked before anything
+ *       changes; a problem fails the action with the network unchanged.
  *   <li>Nodes and edges are matched by element ID; matches get their attributes updated, and new
  *       ones are added.
  *   <li>Only elements the request sent and the result left out are removed, so a run on a selection
@@ -38,7 +39,7 @@ import org.cytoscape.view.presentation.property.BasicVisualLexicon;
  *   <li>Positions go to every view of the network. Network attributes are set; the network keeps
  *       its name when the result has none.
  *   <li>Not in this version: the visual style and opaque aspects stay unchanged. HCX networks are
- *       rejected.
+ *       skipped with a note, as Cytoscape Web does.
  * </ul>
  *
  * @see <a href="https://github.com/cytoscape/cytoscape-web/wiki/updateNetwork-Example">example</a>
@@ -65,9 +66,12 @@ public class UpdateNetworkHandler implements ActionHandler {
     public void apply(JsonElement data, UIInfo ui, RenderReport report) {
         CyNetwork network = ui.targetNetwork();
         if (isHcx(network)) {
-            throw new IllegalArgumentException("HCX networks can't be updated in place yet");
+            // Cytoscape Web warns and carries on with the other actions.
+            report.skip("updateNetwork skipped: HCX networks can't be updated in place yet");
+            return;
         }
         Cx2Document document = Cx2Document.parse(data);
+        checkNoConflicts(network, document);
         IdMapper ids = IdMapper.of(network);
         ids.ensureIds();
 
@@ -126,6 +130,44 @@ public class UpdateNetworkHandler implements ActionHandler {
         }
     }
 
+    /**
+     * Fails before anything changes when a value's type differs from an existing column's, and
+     * converts every value once so a bad value fails here too.
+     */
+    private static void checkNoConflicts(CyNetwork network, Cx2Document document) {
+        for (Cx2Document.Node node : document.nodes) {
+            check(network.getDefaultNodeTable(), document, "nodes", node.values());
+        }
+        for (Cx2Document.Edge edge : document.edges) {
+            check(network.getDefaultEdgeTable(), document, "edges", edge.values());
+        }
+        check(
+                network.getDefaultNetworkTable(),
+                document,
+                "networkAttributes",
+                document.networkAttributes);
+    }
+
+    private static void check(
+            CyTable table, Cx2Document document, String kind, Map<String, JsonElement> values) {
+        for (Map.Entry<String, JsonElement> value : values.entrySet()) {
+            Cx2Document.Attribute declared = document.declared(kind, value.getKey());
+            ColumnType type = declared != null ? declared.type() : CxValues.infer(value.getValue());
+            CyColumn existing = table.getColumn(value.getKey());
+            if (existing != null && !CxValues.typeOf(existing).equals(type)) {
+                throw new IllegalArgumentException(
+                        "updateNetwork attribute '"
+                                + value.getKey()
+                                + "' is "
+                                + CxValues.describe(CxValues.typeOf(existing))
+                                + " in Desktop but "
+                                + CxValues.describe(type)
+                                + " in the result");
+            }
+            CxValues.convert(value.getValue(), type);
+        }
+    }
+
     /** HCX: an {@code ndexSchema} starting with "hierarchy", or any {@code HCX::} attribute. */
     static boolean isHcx(CyNetwork network) {
         CyTable table = network.getDefaultNetworkTable();
@@ -153,10 +195,7 @@ public class UpdateNetworkHandler implements ActionHandler {
         for (Map.Entry<String, JsonElement> value : values.entrySet()) {
             Cx2Document.Attribute declared = document.declared(kind, value.getKey());
             ColumnType type = declared != null ? declared.type() : CxValues.infer(value.getValue());
-            if (CxValues.column(table, value.getKey(), type, null).isEmpty()) {
-                report.note("updateNetwork kept column '" + value.getKey() + "': its type differs");
-                continue;
-            }
+            CxValues.column(table, value.getKey(), type, null);
             row.set(value.getKey(), CxValues.convert(value.getValue(), type));
         }
     }
@@ -170,10 +209,7 @@ public class UpdateNetworkHandler implements ActionHandler {
                     document.declared("networkAttributes", attribute.getKey());
             ColumnType type =
                     declared != null ? declared.type() : CxValues.infer(attribute.getValue());
-            if (CxValues.column(table, attribute.getKey(), type, null).isEmpty()) {
-                report.note("updateNetwork kept network attribute '" + attribute.getKey() + "'");
-                continue;
-            }
+            CxValues.column(table, attribute.getKey(), type, null);
             row.set(attribute.getKey(), CxValues.convert(attribute.getValue(), type));
         }
     }

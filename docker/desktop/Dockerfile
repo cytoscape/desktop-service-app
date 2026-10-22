@@ -27,5 +27,10 @@ RUN test -n "$CYTOSCAPE_INSTALLER_URL" || { echo "CYTOSCAPE_INSTALLER_URL build 
 COPY start-cytoscape.sh /usr/local/bin/start-cytoscape.sh
 RUN chmod +x /usr/local/bin/start-cytoscape.sh
 
+# A stand-in web browser. Cytoscape opens URLs with xdg-open when no desktop browser is available;
+# this one records them in /tmp/opened-urls so the tests can check openURL results.
+COPY xdg-open /usr/local/bin/xdg-open
+RUN chmod +x /usr/local/bin/xdg-open
+
 EXPOSE 1234
 CMD ["/usr/local/bin/start-cytoscape.sh"]

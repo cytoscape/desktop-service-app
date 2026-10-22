@@ -42,6 +42,7 @@ public class LayoutsHandler implements ActionHandler {
 
     @Override
     public void apply(JsonElement data, UIInfo ui, RenderReport report) {
+        List<Position> positions = positions(data);
         CyNetwork network = ui.targetNetwork();
         List<CyNetworkView> views = new ArrayList<>();
         if (ui.targetView() != null) {
@@ -61,9 +62,8 @@ public class LayoutsHandler implements ActionHandler {
         int[] unknown = {0};
         Edt.run(
                 () -> {
-                    for (JsonElement entry : data.getAsJsonArray()) {
-                        JsonObject position = entry.getAsJsonObject();
-                        CyNode node = ids.node(position.get("id").getAsLong());
+                    for (Position position : positions) {
+                        CyNode node = ids.node(position.id());
                         if (node == null || !network.containsNode(node)) {
                             unknown[0]++;
                             continue;
@@ -74,15 +74,12 @@ public class LayoutsHandler implements ActionHandler {
                                 continue;
                             }
                             nodeView.setVisualProperty(
-                                    BasicVisualLexicon.NODE_X_LOCATION,
-                                    position.get("x").getAsDouble());
+                                    BasicVisualLexicon.NODE_X_LOCATION, position.x());
                             nodeView.setVisualProperty(
-                                    BasicVisualLexicon.NODE_Y_LOCATION,
-                                    position.get("y").getAsDouble());
-                            if (position.has("z") && !position.get("z").isJsonNull()) {
+                                    BasicVisualLexicon.NODE_Y_LOCATION, position.y());
+                            if (position.z() != null) {
                                 nodeView.setVisualProperty(
-                                        BasicVisualLexicon.NODE_Z_LOCATION,
-                                        position.get("z").getAsDouble());
+                                        BasicVisualLexicon.NODE_Z_LOCATION, position.z());
                             }
                         }
                     }
@@ -93,5 +90,36 @@ public class LayoutsHandler implements ActionHandler {
         if (unknown[0] > 0) {
             report.note("updateLayouts skipped " + unknown[0] + " ID(s) not in the network");
         }
+    }
+
+    private record Position(long id, double x, double y, Double z) {}
+
+    /** Reads every position before any node moves, so bad data changes nothing. */
+    private static List<Position> positions(JsonElement data) {
+        if (!data.isJsonArray()) {
+            throw new IllegalArgumentException(
+                    "updateLayouts data is not a list of node positions");
+        }
+        List<Position> positions = new ArrayList<>();
+        for (JsonElement entry : data.getAsJsonArray()) {
+            if (!entry.isJsonObject()) {
+                throw new IllegalArgumentException(
+                        "updateLayouts has an entry that isn't a position");
+            }
+            JsonObject position = entry.getAsJsonObject();
+            try {
+                JsonElement z = position.get("z");
+                positions.add(
+                        new Position(
+                                position.get("id").getAsLong(),
+                                position.get("x").getAsDouble(),
+                                position.get("y").getAsDouble(),
+                                z == null || z.isJsonNull() ? null : z.getAsDouble()));
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException(
+                        "updateLayouts position " + position + " needs a numeric id, x and y");
+            }
+        }
+        return positions;
     }
 }

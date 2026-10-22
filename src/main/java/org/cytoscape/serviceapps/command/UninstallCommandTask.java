@@ -10,7 +10,7 @@ import org.cytoscape.work.Tunable;
 public class UninstallCommandTask extends JsonResultTask {
 
     public static final String NAME = "uninstall";
-    public static final String DESCRIPTION = "Uninstall a service app";
+    public static final String DESCRIPTION = "Uninstall a service app and remove its menu entry";
     public static final String LONG_DESCRIPTION =
             "Removes the installed service app with this name. Fails if no such app is installed."
                     + " The text reply contains 'uninstalled' on success.";

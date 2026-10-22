@@ -15,6 +15,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.cytoscape.serviceapps.app.AppSupport;
+import org.cytoscape.serviceapps.contract.ContractHarness;
+import org.cytoscape.serviceapps.contract.DockerTaskCallHarness;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
@@ -209,6 +211,22 @@ class DesktopUiWiringIT {
 
     @Test
     @Order(6)
+    void taskCallWorksAfterTheRestart(DesktopContainer desktop, FixtureServer fixture) {
+        // A restart leaves no networks open: load the contract network, then run through the
+        // command path, which was registered again at startup.
+        DockerTaskCallHarness harness = new DockerTaskCallHarness(desktop, fixture, false);
+        harness.reset();
+
+        ContractHarness.Outcome outcome =
+                harness.run("result-update-selection", ContractHarness.Ui.CURRENT_VIEW);
+
+        assertTrue(outcome.succeeded(), outcome.message());
+        assertEquals("Applied updateSelection", outcome.message());
+        assertTrue(harness.nodeSelected(15));
+    }
+
+    @Test
+    @Order(7)
     void theAppLogsNoErrors(DesktopContainer desktop) {
         List<String> errors =
                 desktop.logs()

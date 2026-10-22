@@ -20,7 +20,8 @@ import org.cytoscape.work.Tunable;
 public class StatusCommandTask extends JsonResultTask {
 
     public static final String NAME = "status";
-    public static final String DESCRIPTION = "Check that an installed service app is reachable";
+    public static final String DESCRIPTION =
+            "Check that an installed service app's service is reachable";
     public static final String LONG_DESCRIPTION =
             "Calls the installed service app's GET /status endpoint and returns {name, reachable,"
                     + " httpStatus, serviceStatus}. httpStatus is null when nothing answered."

@@ -43,6 +43,24 @@ public interface ContractHarness extends AutoCloseable {
     /** Adds a node column to the target network. */
     void addNodeColumn(String name, Class<?> type);
 
+    /** Sets a network table attribute of the target, creating a text column if needed. */
+    void setNetworkAttribute(String name, String value);
+
+    /** Whether the run can target one view; false when it always targets every view. */
+    default boolean supportsViewTarget() {
+        return true;
+    }
+
+    /** Whether {@link #failBrowser()} works in this harness. */
+    default boolean canFailBrowser() {
+        return false;
+    }
+
+    /** Makes the next attempt to open a web browser fail. */
+    default void failBrowser() {
+        throw new UnsupportedOperationException("this harness can't make the browser fail");
+    }
+
     /** Installs the fixture scenario and runs it the way this harness reaches Desktop. */
     Outcome run(String scenario, Ui ui);
 

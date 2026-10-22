@@ -22,6 +22,6 @@ public class AddTablesHandler implements ActionHandler {
 
     @Override
     public void apply(JsonElement data, UIInfo ui, RenderReport report) {
-        report.note("addTables is not supported yet and was skipped");
+        report.skip("addTables is not supported yet and was skipped");
     }
 }

@@ -93,6 +93,18 @@ public final class DesktopContainer implements AutoCloseable {
                         + "framework-cytoscape.log 2>/dev/null");
     }
 
+    /** Copies a local file into the container. */
+    public void copyIn(Path local, String containerPath) {
+        docker("cp", local.toString(), name + ":" + containerPath);
+    }
+
+    /** Runs a command in the container and returns its output. */
+    public String exec(String... command) {
+        List<String> args = new ArrayList<>(List.of("exec", name));
+        args.addAll(List.of(command));
+        return docker(args.toArray(String[]::new));
+    }
+
     /** Prints the container's Cytoscape logs, so a CI failure explains itself. */
     public void printDiagnostics() {
         try {

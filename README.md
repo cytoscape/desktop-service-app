@@ -1,10 +1,12 @@
 # desktop-service-app
 
-A Cytoscape Desktop app that brings [service apps](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)) to Cytoscape Desktop. It installs them from the unified App Store, keeps track of the installed ones, gives them menu entries and input dialogs, runs them against their services, applies their results to your networks, and exposes `serviceapps` automation commands.
+A Cytoscape Desktop app that brings [service apps](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)) to Cytoscape Desktop. It installs them from the unified App Store, keeps track of the installed ones, gives them menu entries and input dialogs, runs them against their services, applies their results to your networks, and exposes `serviceapps` commands so agents and scripts can do the same.
+
+**User manual:** [docs/Manual.md](docs/Manual.md) covers installing service apps from the App Store, running them, the Service Apps manager, errors, and the agent flow.
 
 Requires Cytoscape 3.10 or later and Java 17.
 
-Work is tracked in [cytoscape/cytoscape#28](https://github.com/cytoscape/cytoscape/issues/28). This release covers [cytoscape/cytoscape#43](https://github.com/cytoscape/cytoscape/issues/43) and [cytoscape/cytoscape#44](https://github.com/cytoscape/cytoscape/issues/44).
+Work is tracked in [cytoscape/cytoscape#28](https://github.com/cytoscape/cytoscape/issues/28). This release covers [cytoscape/cytoscape#43](https://github.com/cytoscape/cytoscape/issues/43), [cytoscape/cytoscape#44](https://github.com/cytoscape/cytoscape/issues/44) and [cytoscape/cytoscape#45](https://github.com/cytoscape/cytoscape/issues/45). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Using service apps
 
@@ -14,7 +16,7 @@ Work is tracked in [cytoscape/cytoscape#28](https://github.com/cytoscape/cytosca
 
 ## Commands
 
-Every command is in the `serviceapps` namespace. It is available from Desktop's Command Line, from automation scripts, and over CyREST at `http://127.0.0.1:1234/v1/commands/serviceapps/<command>`. Each returns JSON.
+Every command is in the `serviceapps` namespace. It is available from Desktop's Command Line, from automation scripts, from agents through the Cytoscape MCP Desktop app, and over CyREST at `http://127.0.0.1:1234/v1/commands/serviceapps/<command>`. Each returns JSON and takes named arguments. Its full description and example reply are in its command metadata, which Desktop's `help`, CyREST's `/v1/commands/swagger.json` and the MCP Desktop app show.
 
 | Command | Does |
 |---|---|
@@ -22,6 +24,9 @@ Every command is in the `serviceapps` namespace. It is available from Desktop's 
 | `serviceapps install name= version= url=` | Fetches the app's metadata from `url`, checks that it reports that `name` and `version`, and installs it. Installing a name that is already installed replaces it (an upgrade). The text reply contains `installed` |
 | `serviceapps uninstall name=` | Removes an installed app. The text reply contains `uninstalled` |
 | `serviceapps status name=` | Checks the app's `GET /status` and returns `{name, reachable, httpStatus, serviceStatus}` |
+| `serviceapps describe name=` | Returns `{metadata, serviceInputSchema, uiInputSchema, unsupportedReason?}`: the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for that app |
+| `serviceapps task call app= serviceInput= uiInput=` | Runs the app in the background exactly as its menu entry does and returns `{task_id}` at once. `serviceInput` and the optional `uiInput` are JSON strings |
+| `serviceapps task status task_id=` | Returns `{progress, message, status, result: null}`; `status` is `complete` only after the result is applied in Desktop |
 
 For example, with Cytoscape running:
 

@@ -105,7 +105,7 @@ class ServiceAppRunRegistryTest {
         waitFor(() -> TaskStatus.FAILED.equals(status(id)));
 
         assertEquals(
-                "failure-failed reported a failure: Algorithm failed: bad input",
+                "Service task failed: Algorithm failed: bad input",
                 registry.status(id).orElseThrow().message);
     }
 

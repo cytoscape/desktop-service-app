@@ -32,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -141,7 +143,9 @@ class RenderHandlersTest {
     }
 
     @Test
-    void openUrlOpensWhenTargetIsNullOrAbsent() {
+    void openUrlOpensTheSystemBrowserWhenTargetIsNullOrAbsent() {
+        when(browser.openURL(anyString(), anyBoolean())).thenReturn(true);
+
         render(ResultAction.OPEN_URL, SentIds.NONE);
         render(
                 List.of(
@@ -149,67 +153,132 @@ class RenderHandlersTest {
                                 ResultAction.OPEN_URL,
                                 JsonParser.parseString("{\"url\":\"https://a.example\"}"))),
                 SentIds.NONE);
-        RenderReport ignored =
-                render(
-                        List.of(
-                                new ResultAction(
-                                        ResultAction.OPEN_URL,
-                                        JsonParser.parseString(
-                                                "{\"url\":\"https://b.example\",\"target\":\"frame\"}"))),
-                        SentIds.NONE);
 
-        verify(browser).openURL("https://www.cytoscape.org");
-        verify(browser).openURL("https://a.example");
-        verify(browser, never()).openURL("https://b.example");
-        assertTrue(ignored.notes().get(0).contains("was not opened"));
+        verify(browser).openURL("https://www.cytoscape.org", false);
+        verify(browser).openURL("https://a.example", false);
+    }
+
+    @Test
+    void openUrlWithATargetFailsWithoutOpening() {
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.OPEN_URL,
+                                                        JsonParser.parseString(
+                                                                "{\"url\":\"https://b.example\",\"target\":\"frame\"}"))),
+                                        SentIds.NONE));
+
+        assertTrue(
+                e.getMessage().contains("openURL target 'frame' isn't supported"), e.getMessage());
+        verify(browser, never()).openURL(anyString(), anyBoolean());
+        verify(browser, never()).openURL(anyString());
+    }
+
+    @Test
+    void openUrlFailsWhenNoBrowserOpens() {
+        when(browser.openURL(anyString(), anyBoolean())).thenReturn(false);
+
+        RenderException e =
+                assertThrows(
+                        RenderException.class, () -> render(ResultAction.OPEN_URL, SentIds.NONE));
+
+        assertEquals(
+                "Rendering failed at openURL (1 of 1): no web browser could be opened for"
+                        + " https://www.cytoscape.org. Nothing was applied.",
+                e.getMessage());
     }
 
     @Test
     void updateTablesCreatesColumnsAndWritesRowsByElementId() {
         RenderReport report = render(ResultAction.UPDATE_TABLES, SentIds.NONE);
 
+        assertEquals(List.of(ResultAction.UPDATE_TABLES), report.applied());
         assertEquals(
                 Integer.class, target.network.getDefaultNodeTable().getColumn("count").getType());
         assertEquals(10, target.network.getRow(target.node(1)).get("count", Integer.class));
         assertEquals("lowest", target.network.getRow(target.node(1)).get("notes", String.class));
         assertEquals(24, target.network.getRow(target.node(2)).get("count", Integer.class));
         assertNull(target.network.getRow(target.node(7)).get("count", Integer.class));
-        assertTrue(report.problems().isEmpty(), report.summary());
+        assertEquals(
+                List.of("updateTables skipped 1 row(s) with IDs not in the network"),
+                report.notes());
     }
 
     @Test
-    void updateTablesAppliesDefaultsSkipsUnknownIdsAndReportsTypeConflicts() {
-        target.network.getDefaultNodeTable().createColumn("score", String.class, false);
+    void updateTablesAppliesDefaultsAndSkipsUnknownIds() {
         JsonElement data =
                 JsonParser.parseString(
-                        "{\"id\":\"node\",\"columns\":[{\"id\":\"score\",\"type\":\"double\"},"
-                                + "{\"id\":\"rank\",\"type\":\"long\",\"default\":0}],"
-                                + "\"rows\":{\"0\":{\"score\":1.5,\"rank\":4},\"999\":{\"rank\":1}}}");
+                        "{\"id\":\"node\",\"columns\":[{\"id\":\"rank\",\"type\":\"long\",\"default\":0}],"
+                                + "\"rows\":{\"0\":{\"rank\":4},\"999\":{\"rank\":1}}}");
 
         RenderReport report =
                 render(List.of(new ResultAction(ResultAction.UPDATE_TABLES, data)), SentIds.NONE);
 
-        assertEquals(
-                String.class, target.network.getDefaultNodeTable().getColumn("score").getType());
-        assertNull(target.network.getRow(target.node(0)).get("score", String.class));
         assertEquals(4L, target.network.getRow(target.node(0)).get("rank", Long.class));
         assertEquals(0L, target.network.getRow(target.node(1)).get("rank", Long.class));
-        assertTrue(report.problems().get(0).contains("'score'"), report.summary());
         assertTrue(report.notes().get(0).contains("1 row(s)"), report.summary());
     }
 
     @Test
-    void updateTablesRejectsOtherTables() {
-        RenderReport report =
-                render(
-                        List.of(
-                                new ResultAction(
-                                        ResultAction.UPDATE_TABLES,
-                                        JsonParser.parseString("{\"id\":\"network\"}"))),
-                        SentIds.NONE);
+    void updateTablesWithATypeConflictFailsBeforeWritingAnything() {
+        target.network.getDefaultNodeTable().createColumn("score", String.class, false);
+        JsonElement data =
+                JsonParser.parseString(
+                        "{\"id\":\"node\",\"columns\":[{\"id\":\"rank\",\"type\":\"long\",\"default\":0},"
+                                + "{\"id\":\"score\",\"type\":\"double\"}],"
+                                + "\"rows\":{\"0\":{\"score\":1.5,\"rank\":4}}}");
 
-        assertTrue(report.problems().get(0).contains("node or edge table"));
-        assertTrue(report.applied().isEmpty());
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(new ResultAction(ResultAction.UPDATE_TABLES, data)),
+                                        SentIds.NONE));
+
+        assertEquals(
+                "Rendering failed at updateTables (1 of 1): updateTables column 'score' is string in"
+                        + " Desktop but double in the result. Nothing was applied.",
+                e.getMessage());
+        assertNull(target.network.getDefaultNodeTable().getColumn("rank"), "nothing created");
+    }
+
+    @Test
+    void updateTablesWithAnUnknownTypeFails() {
+        JsonElement data =
+                JsonParser.parseString(
+                        "{\"id\":\"node\",\"columns\":[{\"id\":\"shape\",\"type\":\"complex\"}],\"rows\":{}}");
+
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(new ResultAction(ResultAction.UPDATE_TABLES, data)),
+                                        SentIds.NONE));
+
+        assertTrue(e.getMessage().contains("'shape' has unknown type 'complex'"), e.getMessage());
+    }
+
+    @Test
+    void updateTablesRejectsOtherTables() {
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_TABLES,
+                                                        JsonParser.parseString(
+                                                                "{\"id\":\"network\"}"))),
+                                        SentIds.NONE));
+
+        assertTrue(e.getMessage().contains("node or edge table"), e.getMessage());
     }
 
     @Test
@@ -224,26 +293,88 @@ class RenderHandlersTest {
     }
 
     @Test
-    void addTablesIsSkippedWithANote() {
+    void addTablesIsSkippedWithANoteAndNotListedAsApplied() {
         RenderReport report = render(ResultAction.ADD_TABLES, SentIds.NONE);
 
-        assertTrue(report.notes().get(0).contains("addTables"));
+        assertEquals(List.of("addTables is not supported yet and was skipped"), report.notes());
+        assertTrue(report.applied().isEmpty());
     }
 
     @Test
-    void unknownActionsAreReportedAndTheRestStillRun() {
-        RenderReport report =
-                render(
-                        List.of(
-                                new ResultAction("explodeNetwork", new JsonObject()),
-                                new ResultAction(
-                                        ResultAction.UPDATE_SELECTION,
-                                        ScenarioCatalog.exampleAction("updateSelection")
-                                                .get("data"))),
-                        SentIds.NONE);
+    void anUnknownActionFailsBeforeAnythingIsApplied() {
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_SELECTION,
+                                                        ScenarioCatalog.exampleAction(
+                                                                        "updateSelection")
+                                                                .get("data")),
+                                                new ResultAction(
+                                                        "explodeNetwork", new JsonObject())),
+                                        SentIds.NONE));
 
-        assertTrue(report.problems().get(0).contains("explodeNetwork"));
-        assertTrue(selected(target.node(15)));
+        assertEquals(
+                "Rendering failed: the result asks for unknown action 'explodeNetwork'. Nothing was"
+                        + " applied.",
+                e.getMessage());
+        assertFalse(selected(target.node(15)), "even the action before it is not applied");
+    }
+
+    @Test
+    void theFirstFailingActionStopsTheRun() {
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_LAYOUTS,
+                                                        ScenarioCatalog.exampleAction(
+                                                                        "updateLayouts")
+                                                                .get("data")),
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_TABLES,
+                                                        JsonParser.parseString(
+                                                                "{\"id\":\"network\"}")),
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_SELECTION,
+                                                        ScenarioCatalog.exampleAction(
+                                                                        "updateSelection")
+                                                                .get("data"))),
+                                        SentIds.NONE));
+
+        assertEquals(
+                "Rendering failed at updateTables (2 of 3): updateTables can only update the node or"
+                        + " edge table, not 'network'. Applied: updateLayouts. Not applied:"
+                        + " updateSelection.",
+                e.getMessage());
+        assertEquals(25.2, x(target.view, target.node(7)));
+        assertFalse(selected(target.node(15)));
+    }
+
+    @Test
+    void malformedLayoutDataFailsBeforeAnyNodeMoves() {
+        double before = x(target.view, target.node(7));
+
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_LAYOUTS,
+                                                        JsonParser.parseString(
+                                                                "[{\"id\":7,\"x\":1,\"y\":2},{\"id\":100}]"))),
+                                        SentIds.NONE));
+
+        assertTrue(e.getMessage().contains("needs a numeric id, x and y"), e.getMessage());
+        assertEquals(before, x(target.view, target.node(7)));
     }
 
     @Test
@@ -261,7 +392,10 @@ class RenderHandlersTest {
                                         new UIInfo(null, null, SentIds.NONE),
                                         mock(TaskMonitor.class)));
 
-        assertTrue(e.getMessage().contains("updateSelection"));
+        assertEquals(
+                "Rendering failed: the result asks to updateSelection, which needs a network, and no"
+                        + " network was targeted. Nothing was applied.",
+                e.getMessage());
     }
 
     @Test
@@ -274,6 +408,7 @@ class RenderHandlersTest {
 
         RenderReport report = render(ResultAction.UPDATE_NETWORK, everything);
 
+        assertEquals(List.of("updateNetwork removed 5 node(s) and 2 edge(s)"), report.notes());
         assertEquals(suid, target.network.getSUID());
         assertEquals(2, target.network.getNodeCount());
         assertEquals(1, target.network.getEdgeCount());
@@ -286,7 +421,6 @@ class RenderHandlersTest {
         assertEquals(
                 "network name",
                 target.network.getRow(target.network).get(CyNetwork.NAME, String.class));
-        assertTrue(report.problems().isEmpty(), report.summary());
     }
 
     @Test
@@ -321,12 +455,17 @@ class RenderHandlersTest {
                 JsonParser.parseString(
                         "[{\"CXVersion\":\"2.0\"},{\"nodes\":[{\"id\":0}]},{\"edges\":[{\"id\":9,\"s\":0,\"t\":42}]}]");
 
-        RenderReport report =
-                render(
-                        List.of(new ResultAction(ResultAction.UPDATE_NETWORK, broken)),
-                        SentIds.NONE);
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_NETWORK, broken)),
+                                        SentIds.NONE));
 
-        assertTrue(report.problems().get(0).contains("connects nodes that aren't in the result"));
+        assertTrue(e.getMessage().contains("connects nodes that aren't in the result"));
         assertEquals(before, target.snapshot());
     }
 
@@ -335,9 +474,56 @@ class RenderHandlersTest {
         target.network.getDefaultNetworkTable().createColumn("ndexSchema", String.class, false);
         target.network.getRow(target.network).set("ndexSchema", "hierarchy_v0.1");
 
+        var before = target.snapshot();
+
         RenderReport report = render(ResultAction.UPDATE_NETWORK, SentIds.NONE);
 
-        assertTrue(report.problems().get(0).contains("HCX"));
+        assertEquals(
+                List.of("updateNetwork skipped: HCX networks can't be updated in place yet"),
+                report.notes());
+        assertTrue(report.applied().isEmpty());
+        assertEquals(before, target.snapshot());
+    }
+
+    @Test
+    void updateNetworkWithATypeConflictFailsWithTheNetworkUnchanged() {
+        target.network.getDefaultNodeTable().createColumn("age", String.class, false);
+        var before = target.snapshot();
+        SentIds everything =
+                new SentIds(
+                        Set.copyOf(ContractNetwork.NODE_IDS),
+                        Set.of(ContractNetwork.EDGE_3, ContractNetwork.EDGE_6));
+
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () -> render(ResultAction.UPDATE_NETWORK, everything));
+
+        assertEquals(
+                "Rendering failed at updateNetwork (1 of 1): updateNetwork attribute 'age' is string"
+                        + " in Desktop but integer in the result. Nothing was applied.",
+                e.getMessage());
+        assertEquals(before, target.snapshot());
+    }
+
+    @Test
+    void updateNetworkWithAnUnknownDeclaredTypeFails() {
+        JsonElement data =
+                JsonParser.parseString(
+                        "[{\"CXVersion\":\"2.0\"},{\"attributeDeclarations\":[{\"nodes\":{\"shape\":{\"d\":\"complex\"}}}]},"
+                                + "{\"nodes\":[{\"id\":0}]}]");
+
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_NETWORK, data)),
+                                        SentIds.NONE));
+
+        assertTrue(e.getMessage().contains("'shape' with unknown type 'complex'"), e.getMessage());
     }
 
     @Test

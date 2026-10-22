@@ -130,8 +130,17 @@ final class Cx2Document {
                     kind.getValue().getAsJsonObject().entrySet()) {
                 JsonObject spec = attribute.getValue().getAsJsonObject();
                 String type = spec.has("d") ? spec.get("d").getAsString() : "string";
+                String name = attribute.getKey();
                 ColumnType columnType =
-                        CyColumnTypes.fromCx2(type).orElse(ColumnType.of(String.class));
+                        CyColumnTypes.fromCx2(type)
+                                .orElseThrow(
+                                        () ->
+                                                new IllegalArgumentException(
+                                                        "updateNetwork data declares attribute '"
+                                                                + name
+                                                                + "' with unknown type '"
+                                                                + type
+                                                                + "'"));
                 attributes.put(
                         attribute.getKey(),
                         new Attribute(attribute.getKey(), columnType, spec.get("v")));

@@ -154,9 +154,7 @@ class ServiceAppRunTest {
                         RunException.class,
                         () -> run(fixture, "failure-failed", FAST).run(new RecordingTaskMonitor()));
 
-        assertEquals(
-                "failure-failed reported a failure: Algorithm failed: bad input",
-                failure.getMessage());
+        assertEquals("Service task failed: Algorithm failed: bad input", failure.getMessage());
         assertEquals(before, x(7));
         assertTrue(fixture.liveTaskIds().isEmpty(), "the failed task is deleted");
         assertTrue(states.get(states.size() - 1).startsWith("failed"), states.toString());
@@ -175,7 +173,7 @@ class ServiceAppRunTest {
                                         .run(new RecordingTaskMonitor()));
 
         assertEquals(
-                "failure-never-complete took longer than 300 ms and was stopped.",
+                "Service task failed: failure-never-complete took longer than 300 ms and was stopped.",
                 failure.getMessage());
         assertEquals(before, x(7));
         assertTrue(methods(fixture).contains("DELETE"));
@@ -245,7 +243,8 @@ class ServiceAppRunTest {
                                         .run(new RecordingTaskMonitor()));
 
         assertTrue(
-                failure.getMessage().startsWith("Lost contact with failure-slow"),
+                failure.getMessage()
+                        .startsWith("Service task failed: lost contact with failure-slow"),
                 failure.getMessage());
         assertEquals(RunSettings.MAX_FAILED_POLLS, polls.get());
         assertTrue(fixture.liveTaskIds().isEmpty());
@@ -261,9 +260,30 @@ class ServiceAppRunTest {
                                         .run(new RecordingTaskMonitor()));
 
         assertTrue(
-                failure.getMessage().startsWith("failure-submit-500 didn't accept the task"),
+                failure.getMessage()
+                        .startsWith(
+                                "Service task failed: failure-submit-500 didn't accept the task"),
                 failure.getMessage());
         assertEquals(List.of("POST"), methods(fixture));
+    }
+
+    @Test
+    void aResultThatCantBeAppliedFailsTheTaskWithTheRenderingMessage(FixtureServer fixture) {
+        // The menu path runs this task through Desktop's task manager, which shows the exception's
+        // message in its error dialog; task status reports the same message.
+        RunException failure =
+                assertThrows(
+                        RunException.class,
+                        () ->
+                                run(fixture, "result-malformed-layouts", FAST)
+                                        .run(new RecordingTaskMonitor()));
+
+        assertEquals(
+                "Rendering failed at updateLayouts (1 of 1): updateLayouts data is not a list of node"
+                        + " positions. Nothing was applied.",
+                failure.getMessage());
+        assertTrue(states.get(states.size() - 1).startsWith("failed"), states.toString());
+        assertTrue(fixture.liveTaskIds().isEmpty(), "the task is still deleted");
     }
 
     @Test

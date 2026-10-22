@@ -1,6 +1,8 @@
 package org.cytoscape.serviceapps;
 
 import java.io.File;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,14 +24,20 @@ import org.cytoscape.model.CyNetworkManager;
 import org.cytoscape.property.CyProperty;
 import org.cytoscape.service.util.AbstractCyActivator;
 import org.cytoscape.service.util.CyServiceRegistrar;
+import org.cytoscape.serviceapps.call.ServiceInputParser;
+import org.cytoscape.serviceapps.call.UiTargetResolver;
 import org.cytoscape.serviceapps.client.ClientSettings;
 import org.cytoscape.serviceapps.client.DefaultServiceAppClientFactory;
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
 import org.cytoscape.serviceapps.client.ServiceAppStatusChecker;
 import org.cytoscape.serviceapps.command.CommandTaskFactory;
+import org.cytoscape.serviceapps.command.Commands;
+import org.cytoscape.serviceapps.command.DescribeCommandTask;
 import org.cytoscape.serviceapps.command.InstallCommandTask;
 import org.cytoscape.serviceapps.command.ListCommandTask;
 import org.cytoscape.serviceapps.command.StatusCommandTask;
+import org.cytoscape.serviceapps.command.TaskCallCommandTask;
+import org.cytoscape.serviceapps.command.TaskStatusCommandTask;
 import org.cytoscape.serviceapps.command.UninstallCommandTask;
 import org.cytoscape.serviceapps.cx.CxSupportBridge;
 import org.cytoscape.serviceapps.form.FormSpecBuilder;
@@ -47,6 +55,7 @@ import org.cytoscape.serviceapps.request.RequestBuilder;
 import org.cytoscape.serviceapps.run.ActiveRuns;
 import org.cytoscape.serviceapps.run.RunSettings;
 import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
+import org.cytoscape.serviceapps.run.ServiceAppRunRegistry;
 import org.cytoscape.util.swing.OpenBrowser;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.Task;
@@ -69,12 +78,13 @@ import static org.cytoscape.work.ServiceProperties.IN_MENU_BAR;
  */
 public class CyActivator extends AbstractCyActivator {
 
-    public static final String COMMAND_NAMESPACE_VALUE = "serviceapps";
+    public static final String COMMAND_NAMESPACE_VALUE = Commands.NAMESPACE;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CyActivator.class);
 
     private ServiceAppLifecycle lifecycle;
     private ExecutorService background;
+    private ServiceAppRunRegistry runRegistry;
 
     @Override
     public void start(BundleContext bc) {
@@ -91,8 +101,7 @@ public class CyActivator extends AbstractCyActivator {
                 new DefaultServiceAppClientFactory(
                         () -> ClientSettings.from(properties.getProperties()));
 
-        registerCommands(bc, registry, clients);
-        registerUi(bc, registry, clients, properties);
+        registerUiAndCommands(bc, registry, clients, properties);
 
         LOGGER.info(
                 "Desktop Service App started with {} service app(s) installed",
@@ -100,11 +109,12 @@ public class CyActivator extends AbstractCyActivator {
     }
 
     /**
-     * Menu entries, the input dialog, the run engine and the Service Apps manager.
+     * Menu entries, the input dialog, the run engine, the Service Apps manager and the {@code
+     * serviceapps} commands.
      *
      * <p>Each wiring step logs one INFO line; the Docker integration tests read them.
      */
-    private void registerUi(
+    private void registerUiAndCommands(
             BundleContext bc,
             ServiceAppRegistry registry,
             ServiceAppClientFactory clients,
@@ -114,8 +124,8 @@ public class CyActivator extends AbstractCyActivator {
         CyNetworkViewManager viewManager = getService(bc, CyNetworkViewManager.class);
         CySwingApplication swing = getService(bc, CySwingApplication.class);
 
-        CxSupportBridge cx2 =
-                new CxSupportBridge(getService(bc, CyNetworkManager.class), viewManager);
+        CyNetworkManager networkManager = getService(bc, CyNetworkManager.class);
+        CxSupportBridge cx2 = new CxSupportBridge(networkManager, viewManager);
         registerServiceListener(
                 bc,
                 cx2::addWriterFactory,
@@ -168,6 +178,27 @@ public class CyActivator extends AbstractCyActivator {
                                         Confirmer.OPTION_PANE));
         registerService(bc, manage, CyAction.class, new Properties());
         LOGGER.info("Manage Service Apps… registered under Tools > Service Apps");
+
+        runRegistry = new ServiceAppRunRegistry(active);
+        UiTargetResolver targets = new UiTargetResolver(networkManager, viewManager, applications);
+        ServiceInputParser inputs = new ServiceInputParser(new FormSpecBuilder());
+        Map<Class<? extends Task>, Supplier<Task>> commands = new LinkedHashMap<>();
+        commands.put(ListCommandTask.class, () -> new ListCommandTask(registry));
+        commands.put(InstallCommandTask.class, () -> new InstallCommandTask(registry, clients));
+        commands.put(UninstallCommandTask.class, () -> new UninstallCommandTask(registry));
+        commands.put(StatusCommandTask.class, () -> new StatusCommandTask(registry, clients));
+        commands.put(DescribeCommandTask.class, () -> new DescribeCommandTask(registry, cx2));
+        commands.put(
+                TaskCallCommandTask.class,
+                () -> new TaskCallCommandTask(registry, targets, inputs, runs, runRegistry, cx2));
+        commands.put(TaskStatusCommandTask.class, () -> new TaskStatusCommandTask(runRegistry));
+        for (Class<? extends Task> type : Commands.ALL) {
+            Supplier<Task> tasks = commands.get(type);
+            if (tasks == null) {
+                throw new IllegalStateException("no task supplier for " + type.getSimpleName());
+            }
+            registerCommand(bc, Commands.Command.of(type), tasks);
+        }
     }
 
     /** Cancels runs in progress and removes every menu entry before the bundle stops. */
@@ -175,6 +206,9 @@ public class CyActivator extends AbstractCyActivator {
     public void shutDown() {
         if (lifecycle != null) {
             lifecycle.shutdown();
+        }
+        if (runRegistry != null) {
+            runRegistry.shutdown();
         }
         if (background != null) {
             background.shutdownNow();
@@ -191,38 +225,6 @@ public class CyActivator extends AbstractCyActivator {
         };
     }
 
-    private void registerCommands(
-            BundleContext bc, ServiceAppRegistry registry, ServiceAppClientFactory clients) {
-        registerCommand(
-                bc,
-                ListCommandTask.NAME,
-                ListCommandTask.DESCRIPTION,
-                ListCommandTask.LONG_DESCRIPTION,
-                ListCommandTask.EXAMPLE_JSON,
-                () -> new ListCommandTask(registry));
-        registerCommand(
-                bc,
-                InstallCommandTask.NAME,
-                InstallCommandTask.DESCRIPTION,
-                InstallCommandTask.LONG_DESCRIPTION,
-                InstallCommandTask.EXAMPLE_JSON,
-                () -> new InstallCommandTask(registry, clients));
-        registerCommand(
-                bc,
-                UninstallCommandTask.NAME,
-                UninstallCommandTask.DESCRIPTION,
-                UninstallCommandTask.LONG_DESCRIPTION,
-                UninstallCommandTask.EXAMPLE_JSON,
-                () -> new UninstallCommandTask(registry));
-        registerCommand(
-                bc,
-                StatusCommandTask.NAME,
-                StatusCommandTask.DESCRIPTION,
-                StatusCommandTask.LONG_DESCRIPTION,
-                StatusCommandTask.EXAMPLE_JSON,
-                () -> new StatusCommandTask(registry, clients));
-    }
-
     /**
      * Publishes one command to the Command Line, CyREST and automation clients.
      *
@@ -230,21 +232,15 @@ public class CyActivator extends AbstractCyActivator {
      * TaskFactory} and falls back to the Apps menu, so a command registered without it also adds a
      * menu item.
      */
-    private void registerCommand(
-            BundleContext bc,
-            String name,
-            String description,
-            String longDescription,
-            String exampleJson,
-            Supplier<Task> tasks) {
+    private void registerCommand(BundleContext bc, Commands.Command command, Supplier<Task> tasks) {
         Properties props = new Properties();
         props.setProperty(IN_MENU_BAR, "false");
         props.setProperty(COMMAND_NAMESPACE, COMMAND_NAMESPACE_VALUE);
-        props.setProperty(COMMAND, name);
-        props.setProperty(COMMAND_DESCRIPTION, description);
-        props.setProperty(COMMAND_LONG_DESCRIPTION, longDescription);
+        props.setProperty(COMMAND, command.name());
+        props.setProperty(COMMAND_DESCRIPTION, command.description());
+        props.setProperty(COMMAND_LONG_DESCRIPTION, command.longDescription());
         props.setProperty(COMMAND_SUPPORTS_JSON, "true");
-        props.setProperty(COMMAND_EXAMPLE_JSON, exampleJson);
+        props.setProperty(COMMAND_EXAMPLE_JSON, command.exampleJson());
         registerService(bc, new CommandTaskFactory(tasks), TaskFactory.class, props);
     }
 }
