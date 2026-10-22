@@ -1,10 +1,16 @@
 # desktop-service-app
 
-A Cytoscape Desktop app that brings [service apps](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)) to Cytoscape Desktop. It installs them from the unified App Store, keeps track of the installed ones, and exposes `serviceapps` automation commands. Menus, dialogs and running service apps come in later releases.
+A Cytoscape Desktop app that brings [service apps](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)) to Cytoscape Desktop. It installs them from the unified App Store, keeps track of the installed ones, gives them menu entries and input dialogs, runs them against their services, applies their results to your networks, and exposes `serviceapps` automation commands.
 
 Requires Cytoscape 3.10 or later and Java 17.
 
-Work is tracked in [cytoscape/cytoscape#28](https://github.com/cytoscape/cytoscape/issues/28). This release covers [cytoscape/cytoscape#43](https://github.com/cytoscape/cytoscape/issues/43).
+Work is tracked in [cytoscape/cytoscape#28](https://github.com/cytoscape/cytoscape/issues/28). This release covers [cytoscape/cytoscape#43](https://github.com/cytoscape/cytoscape/issues/43) and [cytoscape/cytoscape#44](https://github.com/cytoscape/cytoscape/issues/44).
+
+## Using service apps
+
+- **Menu entries.** An app whose metadata names a Desktop menu (`File`, `Edit`, `View`, `Select`, `Layout`, `Apps`, `Tools` or `Help`, in any case) gets an entry there, at the path and position it asks for. An app that names no menu, or another one such as `Analysis`, gets no entry; it is still installed and can be run from the manager. An entry is enabled only when the app can run: an app working on selected nodes needs a node selected, and an app that is unsupported or whose service can't be reached is greyed out, with the reason in its tooltip.
+- **Service Apps manager.** `Tools > Service Apps > Manage Service Apps…` lists every installed app with its live status (`Online` or `Offline`). Tick **Invoke** to run an app, or **Uninstall** to remove it after confirming.
+- **Running an app.** The app's dialog shows its name, version, citation and parameters, remembering the values used last time. On OK the current network (or its selection, depending on the app) is sent to the service, the progress is shown, and the result is applied: selection, layouts, table columns, new networks, an updated network, or a web page. Results can't be undone.
 
 ## Commands
 
@@ -34,6 +40,8 @@ Installed apps are saved in `service-apps.json` under the app's folder in the Cy
 |---|---|---|
 | `connect.timeout.ms` | 10000 | How long to wait for a service app to accept a connection |
 | `read.timeout.ms` | 30000 | How long to wait for a service app to answer one request |
+| `poll.interval.ms` | 500 | How often a run checks its task's progress |
+| `run.timeout.ms` | 1800000 | How long a run may take before it is stopped (30 minutes) |
 
 ## Build and test
 
@@ -42,7 +50,7 @@ Installed apps are saved in `service-apps.json` under the app's folder in the Cy
 | Target | Does |
 |---|---|
 | `make build` | Builds the OSGi bundle into `build/libs/` |
-| `make test` | Every test that runs in the JVM: unit tests, the client and commands against the fixture service app over HTTP, the bundle manifest checks, and the style check |
+| `make test` | Every test that runs in the JVM: unit tests, the client, commands and runs against the fixture service app over HTTP, the result action contract through the menu path on real networks and views, the dialogs (under xvfb in CI), the architecture rules, the bundle manifest checks, and the style check |
 | `make integration-test` | The `*IT` tests: Cytoscape Desktop running in Docker, with the app installed, reached over CyREST. Needs Docker |
 | `make lint` / `make lint-fix` | Checks or fixes code style (google-java-format, AOSP) |
 | `make install-app` | Copies the bundle into `~/CytoscapeConfiguration/3/apps/installed`, where a running Cytoscape picks it up |

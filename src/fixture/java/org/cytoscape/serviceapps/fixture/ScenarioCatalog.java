@@ -313,7 +313,7 @@ public final class ScenarioCatalog {
                                 "{\"id\":\"node\",\"columns\":[{\"id\":\"count\",\"type\":\"integer\"},"
                                         + "{\"id\":\"notes\",\"type\":\"string\"}],"
                                         + "\"rows\":{\"1\":{\"count\":10,\"notes\":\"lowest\"},"
-                                        + "\"2\":{\"count\":24}}}"));
+                                        + "\"2\":{\"count\":24},\"999\":{\"count\":1}}}"));
             case "updateLayouts":
                 return action(
                         action,

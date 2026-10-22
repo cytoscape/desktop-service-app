@@ -7,7 +7,11 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.cytoscape.application.CyApplicationManager;
+import org.cytoscape.serviceapps.cx.Cx2Support;
 import org.cytoscape.serviceapps.model.ResultAction;
+import org.cytoscape.util.swing.OpenBrowser;
+import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.TaskMonitor;
 
 /**
@@ -33,6 +37,23 @@ public class RenderServiceAppUI {
         for (ActionHandler handler : handlers) {
             this.handlers.put(handler.action(), handler);
         }
+    }
+
+    /** The renderer with a handler for every result action in the spec. */
+    public static RenderServiceAppUI standard(
+            CyNetworkViewManager viewManager,
+            OpenBrowser browser,
+            Cx2Support cx2,
+            CyApplicationManager applicationManager) {
+        return new RenderServiceAppUI(
+                List.of(
+                        new SelectionHandler(),
+                        new LayoutsHandler(viewManager),
+                        new OpenUrlHandler(browser),
+                        new TablesHandler(),
+                        new AddNetworksHandler(cx2, applicationManager),
+                        new AddTablesHandler(),
+                        new UpdateNetworkHandler(viewManager)));
     }
 
     /**
