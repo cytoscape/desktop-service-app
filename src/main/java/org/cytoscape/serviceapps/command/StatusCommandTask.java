@@ -4,9 +4,8 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
-import org.cytoscape.serviceapps.client.ServiceAppException;
+import org.cytoscape.serviceapps.client.ServiceAppStatusChecker;
 import org.cytoscape.serviceapps.model.Json;
-import org.cytoscape.serviceapps.model.ServiceStatus;
 import org.cytoscape.serviceapps.registry.InstalledServiceApp;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.work.TaskMonitor;
@@ -39,11 +38,11 @@ public class StatusCommandTask extends JsonResultTask {
     public String name;
 
     private final ServiceAppRegistry registry;
-    private final ServiceAppClientFactory clients;
+    private final ServiceAppStatusChecker checker;
 
     public StatusCommandTask(ServiceAppRegistry registry, ServiceAppClientFactory clients) {
         this.registry = registry;
-        this.clients = clients;
+        this.checker = new ServiceAppStatusChecker(clients);
     }
 
     @Override
@@ -59,26 +58,24 @@ public class StatusCommandTask extends JsonResultTask {
                                                         + "' is installed"));
         monitor.setTitle("Check service app " + target);
 
+        ServiceAppStatusChecker.Result result = checker.check(app.url());
         JsonObject json = new JsonObject();
         json.addProperty("name", target);
-        boolean reachable;
-        try {
-            ServiceStatus status = clients.forUrl(app.url()).getStatus();
-            reachable = true;
-            json.addProperty("reachable", true);
-            json.addProperty("httpStatus", status.httpStatus);
-            json.addProperty("serviceStatus", status.status);
-        } catch (ServiceAppException e) {
-            reachable = false;
-            json.addProperty("reachable", false);
-            if (e.httpStatus() == ServiceAppException.NO_RESPONSE) {
-                json.add("httpStatus", JsonNull.INSTANCE);
-            } else {
-                json.addProperty("httpStatus", e.httpStatus());
-            }
-            json.add("serviceStatus", JsonNull.INSTANCE);
-            json.addProperty("message", e.getMessage());
+        json.addProperty("reachable", result.reachable());
+        if (result.httpStatus() == null) {
+            json.add("httpStatus", JsonNull.INSTANCE);
+        } else {
+            json.addProperty("httpStatus", result.httpStatus());
         }
+        if (result.serviceStatus() == null) {
+            json.add("serviceStatus", JsonNull.INSTANCE);
+        } else {
+            json.addProperty("serviceStatus", result.serviceStatus());
+        }
+        if (result.message() != null) {
+            json.addProperty("message", result.message());
+        }
+        boolean reachable = result.reachable();
         registry.setReachable(target, reachable);
         setResult(json, Json.writeWithNulls(json));
     }

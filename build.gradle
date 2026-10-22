@@ -60,7 +60,8 @@ configurations {
 
 def cytoscapeApis = [
     'model-api', 'service-api', 'work-api', 'work-swing-api', 'application-api',
-    'swing-application-api', 'property-api', 'event-api', 'core-task-api'
+    'swing-application-api', 'property-api', 'event-api', 'core-task-api',
+    'io-api', 'viewmodel-api', 'presentation-api', 'swing-util-api'
 ]
 
 dependencies {
@@ -89,6 +90,10 @@ dependencies {
     testImplementation "org.cytoscape:model-impl:${cytoscapeVersion}"
     testImplementation "org.cytoscape:model-impl:${cytoscapeVersion}:tests"
     testImplementation "org.cytoscape:event-api:${cytoscapeVersion}:tests"
+    // Real CyNetworkViews for the render and contract tests.
+    testImplementation "org.cytoscape:viewmodel-impl:${cytoscapeVersion}"
+    testImplementation "org.cytoscape:viewmodel-impl:${cytoscapeVersion}:tests"
+    testImplementation "com.tngtech.archunit:archunit-junit5:1.3.0"
     cytoscapeApis.each { testImplementation "org.cytoscape:${it}:${cytoscapeVersion}" }
     testImplementation "org.osgi:org.osgi.core:6.0.0"
 }
