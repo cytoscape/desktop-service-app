@@ -37,6 +37,7 @@ public class FakeCx2Support implements Cx2Support {
     public record Export(CyNetwork network, CyNetworkView view, int nodes, int edges) {}
 
     public final List<Export> exports = new ArrayList<>();
+    private final List<Runnable> availabilityListeners = new ArrayList<>();
     private final CyNetworkManager networkManager;
     private final CyNetworkViewManager viewManager;
     private final CyNetworkViewFactory viewFactory;
@@ -53,6 +54,7 @@ public class FakeCx2Support implements Cx2Support {
 
     public void setAvailable(boolean available) {
         this.available = available;
+        availabilityListeners.forEach(Runnable::run);
     }
 
     @Override
@@ -61,7 +63,9 @@ public class FakeCx2Support implements Cx2Support {
     }
 
     @Override
-    public void addAvailabilityListener(Runnable listener) {}
+    public void addAvailabilityListener(Runnable listener) {
+        availabilityListeners.add(listener);
+    }
 
     @Override
     public JsonArray export(CyNetwork network, CyNetworkView view) {
