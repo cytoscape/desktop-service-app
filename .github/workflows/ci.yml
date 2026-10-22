@@ -1,0 +1,51 @@
+# Runs the build's test targets on every push to main and every PR.
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Least privilege: the job only checks out code and uploads test reports.
+    permissions:
+      contents: read
+    # A build that hangs should fail in minutes rather than occupy a runner for six hours.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # Everything that runs in the JVM. Dialog tests build real Swing components, which needs a
+      # display.
+      - name: Tests
+        run: xvfb-run make test
+
+      # Cytoscape Desktop in Docker, reached over CyREST. The installer URL picks the Cytoscape
+      # version under test; change it here to test another release.
+      - name: Integration tests (Cytoscape Desktop in Docker)
+        env:
+          CYTOSCAPE_INSTALLER_URL: https://cytoscape-builds.ucsd.edu/Cytoscape-3.10.5/2026_09_09/rc2/Cytoscape_3_10_5_unix.sh
+          CYTOSCAPE_INSTALLER_SHA256: e9d97c59a52d59b15f9e91a46d4df6b089fd896b54dbc9c36c8799a35b3082e2
+        run: make integration-test
+
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            build/test-results/
+            build/reports/
+          retention-days: 7

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Records each URL Cytoscape asks to open, for the integration tests (see the Dockerfile).
+echo "$1" >> /tmp/opened-urls
