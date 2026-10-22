@@ -18,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.service.util.CyServiceRegistrar;
-import org.cytoscape.serviceapps.app.AppSupport;
 import org.cytoscape.serviceapps.app.RunPrecondition;
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
 import org.cytoscape.serviceapps.client.ServiceAppException;
@@ -222,11 +221,7 @@ public class ServiceAppLifecycle implements RegistryListener {
     }
 
     private Optional<String> disabledReason(InstalledServiceApp app, ServiceMetadata meta) {
-        Optional<String> unsupported = AppSupport.unsupportedReason(meta, cx2.available());
-        if (unsupported.isPresent()) {
-            return unsupported;
-        }
-        return app.reachable() ? Optional.empty() : Optional.of("service unreachable");
+        return RunPrecondition.unavailable(app, meta, cx2.available());
     }
 
     /** The menu entry's service properties: Desktop builds the item from these. */

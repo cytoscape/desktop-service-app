@@ -62,6 +62,19 @@ public class ServiceAppLauncher {
     }
 
     /**
+     * Why the app can't run at all right now (unsupported or unreachable), for a greyed-out Invoke
+     * checkbox, or empty if it can.
+     */
+    public Optional<String> unavailableReason(String name) {
+        Optional<InstalledServiceApp> app = registry.get(name);
+        Optional<ServiceMetadata> meta = registry.getMeta(name);
+        if (app.isEmpty() || meta.isEmpty()) {
+            return Optional.of("not installed");
+        }
+        return RunPrecondition.unavailable(app.get(), meta.get(), cx2.available());
+    }
+
+    /**
      * The tasks for one launch: the input dialog and then the run, or a task that only explains why
      * the app can't run.
      */

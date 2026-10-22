@@ -42,8 +42,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 /** Menu entries follow the installed apps: placement, enablement, refresh, uninstall, shutdown. */
@@ -84,7 +86,7 @@ class ServiceAppLifecycleTest {
         doAnswer(call -> live.remove(call.getArgument(0)))
                 .when(registrar)
                 .unregisterService(any(), eq(TaskFactory.class));
-        registry = ServiceAppRegistry.inDirectory(dir);
+        registry = spy(ServiceAppRegistry.inDirectory(dir));
         lifecycle = newLifecycle();
     }
 
@@ -143,6 +145,8 @@ class ServiceAppLifecycleTest {
         assertEquals(name + " 1.0 from 127.0.0.1:" + fixture.port(), props.getProperty(TOOLTIP));
         assertTrue(factory(name).isReady());
         assertTrue(fixture.requests().isEmpty(), "nothing is fetched before the refresh runs");
+        verify(registry, atLeastOnce()).list();
+        verify(registry, atLeastOnce()).getMeta(name);
         assertEquals(1, refresher.pending());
     }
 

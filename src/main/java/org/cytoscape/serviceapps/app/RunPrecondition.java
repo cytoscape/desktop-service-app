@@ -46,6 +46,23 @@ public final class RunPrecondition {
     }
 
     /**
+     * Why the app can't run at all right now, briefly, for a greyed-out menu entry or Invoke
+     * checkbox: it is unsupported or its service is unreachable. Empty if it can run when its
+     * network and selection needs are met.
+     */
+    public static Optional<String> unavailable(
+            InstalledServiceApp app, ServiceMetadata meta, boolean cx2Available) {
+        Optional<String> unsupported = AppSupport.unsupportedReason(meta, cx2Available);
+        if (unsupported.isPresent()) {
+            return unsupported;
+        }
+        return app.reachable() ? Optional.empty() : Optional.of(UNREACHABLE);
+    }
+
+    /** The short reason for an unreachable app. */
+    public static final String UNREACHABLE = "service unreachable";
+
+    /**
      * Why the app can't run right now, as a message for the user, or empty if it can.
      *
      * @param current the current network, or null

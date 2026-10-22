@@ -45,8 +45,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,7 +76,7 @@ class ServiceAppLauncherTest {
     @BeforeEach
     void setUp(FixtureServer fixture) {
         this.fixture = fixture;
-        registry = ServiceAppRegistry.inDirectory(dir);
+        registry = spy(ServiceAppRegistry.inDirectory(dir));
         ServiceAppRunFactory runs =
                 new ServiceAppRunFactory(
                         registry,
@@ -189,6 +192,21 @@ class ServiceAppLauncherTest {
         ServiceAppRunTask task = (ServiceAppRunTask) launched().next();
         assertEquals(List.of("hey"), task.form.values().parameters().get("Greeting"));
         assertEquals(network, task.target());
+        verify(registry, atLeastOnce()).getMeta(name);
+        verify(registry).getLastValues(name);
+    }
+
+    @Test
+    void cancellingTheDialogSavesNothingAndStartsNothing() {
+        String name = install("menu-root-apps");
+        when(applications.getCurrentNetwork()).thenReturn(network);
+
+        TaskIterator tasks = launcher.createTaskIterator(name);
+        // Desktop's task manager stops here when the user cancels: the dialog task never runs.
+
+        verify(registry, never()).saveLastValues(eq(name), any());
+        assertInstanceOf(ServiceAppRunTask.class, tasks.next());
+        assertTrue(!tasks.hasNext(), "the run is only queued by OK");
     }
 
     @Test
@@ -207,6 +225,7 @@ class ServiceAppLauncherTest {
                         .getAsJsonObject("parameters")
                         .get("Greeting")
                         .getAsString());
+        verify(registry).saveLastValues(eq(name), any());
         Task next = tasks.next();
         assertInstanceOf(ServiceAppRun.class, next);
         assertEquals(name, ((ServiceAppRun) next).appName());
