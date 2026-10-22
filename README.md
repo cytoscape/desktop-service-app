@@ -1,95 +1,106 @@
 # desktop-service-app
 
-A Cytoscape Desktop app that brings [service apps](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)) to Cytoscape Desktop. It installs them from the unified App Store, keeps track of the installed ones, gives them menu entries and input dialogs, runs them against their services, applies their results to your networks, and exposes `serviceapps` commands so agents and scripts can do the same.
+A Cytoscape Desktop app that adds support for **service apps**: tools that run on a web service rather than inside Cytoscape, such as a clustering or enrichment algorithm. Cytoscape Web already runs them; this app lets Cytoscape Desktop install them from the unified App Store, run them on your networks, and apply their results. It follows the [service app specification](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)) and Cytoscape Web's behaviour.
 
-**User manual:** [docs/Manual.md](docs/Manual.md) covers installing service apps from the App Store, running them, the Service Apps manager, errors, and the agent flow.
+Requires Cytoscape 3.10 or later, whose bundled CX Support app is used to exchange networks with services as CX2.
 
-Requires Cytoscape 3.10 or later and Java 17.
+## Documentation
 
-Work is tracked in [cytoscape/cytoscape#28](https://github.com/cytoscape/cytoscape/issues/28). This release covers [cytoscape/cytoscape#43](https://github.com/cytoscape/cytoscape/issues/43), [cytoscape/cytoscape#44](https://github.com/cytoscape/cytoscape/issues/44) and [cytoscape/cytoscape#45](https://github.com/cytoscape/cytoscape/issues/45). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+- **[User manual](docs/Manual.md)**: installing service apps from the App Store, running them, the Service Apps manager, what results do, errors, settings, and how agents and scripts use the commands.
+- **[Changelog](CHANGELOG.md)**: what each release adds.
+- **[Service app specification](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2))**: the service-side contract every service app implements.
+- **[cytoscape/cytoscape#28](https://github.com/cytoscape/cytoscape/issues/28)**: the feature's tracking issue, with its design. It is delivered in [#43](https://github.com/cytoscape/cytoscape/issues/43), [#44](https://github.com/cytoscape/cytoscape/issues/44) and [#45](https://github.com/cytoscape/cytoscape/issues/45).
 
-## Using service apps
+## What it adds to Cytoscape Desktop
 
-- **Menu entries.** An app whose metadata names a Desktop menu (`File`, `Edit`, `View`, `Select`, `Layout`, `Apps`, `Tools` or `Help`, in any case) gets an entry there, at the path and position it asks for. An app that names no menu, or another one such as `Analysis`, gets no entry; it is still installed and can be run from the manager. An entry is enabled only when the app can run: an app working on selected nodes needs a node selected, and an app that is unsupported or whose service can't be reached is greyed out, with the reason in its tooltip.
-- **Service Apps manager.** `Tools > Service Apps > Manage Service Apps…` lists every installed app with its live status (`Online` or `Offline`). Tick **Invoke** to run an app, or **Uninstall** to remove it after confirming.
-- **Running an app.** The app's dialog shows its name, version, citation and parameters, remembering the values used last time. On OK the current network (or its selection, depending on the app) is sent to the service, the progress is shown, and the result is applied: selection, layouts, table columns, new networks, an updated network, or a web page. Results can't be undone.
+- **Install from the App Store.** A service app page's **Install in Cytoscape Desktop** button installs or upgrades the app in the running Desktop. Installed apps, with their metadata, are kept across restarts.
+- **Menu entries.** An app that names a Desktop menu (File, Edit, View, Select, Layout, Apps, Tools or Help) gets an entry at the place it asks for. An entry is greyed out, with the reason in its tooltip, when the app can't run: it needs a selection, its service is unreachable, or it uses something Desktop doesn't support yet.
+- **Generated input dialogs.** Each app's dialog is built from its metadata: text, drop-down, radio, checkbox and column-picker fields, with the app's own validation, and with the values used last time remembered.
+- **The Service Apps manager.** **Tools > Service Apps > Manage Service Apps…** lists every installed app with its live status, and runs or uninstalls it.
+- **Results applied to your networks.** Selection, layouts, table columns, new networks, an in-place network update, or a web page. Results are applied fail-fast, as in Cytoscape Web, and a failure says whether the service or applying its result failed.
+- **Commands for agents and scripts.** Everything above is available as `serviceapps` commands, from Desktop's Command Line, over CyREST, and through the Cytoscape MCP Desktop app.
 
 ## Commands
 
-Every command is in the `serviceapps` namespace. It is available from Desktop's Command Line, from automation scripts, from agents through the Cytoscape MCP Desktop app, and over CyREST at `http://127.0.0.1:1234/v1/commands/serviceapps/<command>`. Each returns JSON and takes named arguments. Its full description and example reply are in its command metadata, which Desktop's `help`, CyREST's `/v1/commands/swagger.json` and the MCP Desktop app show.
+All commands are in the `serviceapps` namespace, take named arguments, and return JSON. Over CyREST they are at `http://127.0.0.1:1234/v1/commands/serviceapps/<command>`. Each command's full description and example reply are in its command metadata, which Desktop's `help`, CyREST's `/v1/commands/swagger.json` and the MCP Desktop app show. The [user manual](docs/Manual.md#for-agents-and-scripts) walks through the agent flow.
 
 | Command | Does |
 |---|---|
-| `serviceapps list` | Lists the installed service apps as `[{name, version, url, reachable}]` |
-| `serviceapps install name= version= url=` | Fetches the app's metadata from `url`, checks that it reports that `name` and `version`, and installs it. Installing a name that is already installed replaces it (an upgrade). The text reply contains `installed` |
-| `serviceapps uninstall name=` | Removes an installed app. The text reply contains `uninstalled` |
-| `serviceapps status name=` | Checks the app's `GET /status` and returns `{name, reachable, httpStatus, serviceStatus}` |
-| `serviceapps describe name=` | Returns `{metadata, serviceInputSchema, uiInputSchema, unsupportedReason?}`: the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for that app |
-| `serviceapps task call app= serviceInput= uiInput=` | Runs the app in the background exactly as its menu entry does and returns `{task_id}` at once. `serviceInput` and the optional `uiInput` are JSON strings |
-| `serviceapps task status task_id=` | Returns `{progress, message, status, result: null}`; `status` is `complete` only after the result is applied in Desktop |
+| `serviceapps list` | The installed service apps: `[{name, version, url, reachable}]` |
+| `serviceapps install name= version= url=` | Installs or upgrades a service app, after checking that its service reports that name and version |
+| `serviceapps uninstall name=` | Uninstalls a service app and removes its menu entry |
+| `serviceapps status name=` | Checks that the app's service answers now |
+| `serviceapps describe name=` | The app's metadata and the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for it |
+| `serviceapps task call app= serviceInput= uiInput=` | Runs the app in the background exactly as its menu entry does; returns `{task_id}` at once. `serviceInput` and the optional `uiInput` are JSON strings |
+| `serviceapps task status task_id=` | `{progress, message, status, result: null}`; `status` is `complete` only after the result is applied in Desktop |
 
-For example, with Cytoscape running:
+For example, with Cytoscape running and the fixture service app started with `make fixture`:
 
 ```
 curl "http://127.0.0.1:1234/v1/commands/serviceapps/install?name=Hello%20World&version=1.0&url=http://127.0.0.1:8765/hello"
 curl "http://127.0.0.1:1234/v1/commands/serviceapps/list"
 ```
 
-Installed apps are saved in `service-apps.json` under the app's folder in the Cytoscape configuration directory, so they survive restarts.
-
 ## Settings
 
-`serviceapps.props` in the Cytoscape configuration directory, also editable in Edit > Preferences > Properties:
+`serviceapps.props` in the Cytoscape configuration directory, also editable in **Edit > Preferences > Properties**:
 
 | Property | Default | Meaning |
 |---|---|---|
-| `connect.timeout.ms` | 10000 | How long to wait for a service app to accept a connection |
-| `read.timeout.ms` | 30000 | How long to wait for a service app to answer one request |
+| `connect.timeout.ms` | 10000 | How long to wait for a service to accept a connection |
+| `read.timeout.ms` | 30000 | How long to wait for a service to answer one request |
 | `poll.interval.ms` | 500 | How often a run checks its task's progress |
 | `run.timeout.ms` | 1800000 | How long a run may take before it is stopped (30 minutes) |
 
-## Build and test
+Installed apps are saved in `service-apps.json` under the app's folder in the Cytoscape configuration directory.
 
-`make` is the only entry point; `make help` lists the targets.
+## Development
+
+Java 17 and Gradle (wrapper included); `make` is the only entry point, and `make help` lists the targets.
 
 | Target | Does |
 |---|---|
 | `make build` | Builds the OSGi bundle into `build/libs/` |
-| `make test` | Every test that runs in the JVM: unit tests, the client, commands and runs against the fixture service app over HTTP, the result action contract through the menu path on real networks and views, the dialogs (under xvfb in CI), the architecture rules, the bundle manifest checks, and the style check |
-| `make integration-test` | The `*IT` tests: Cytoscape Desktop running in Docker, with the app installed, reached over CyREST. Needs Docker |
+| `make test` | Every JVM test, including the style check (details below) |
+| `make integration-test` | The `*IT` tests against Cytoscape Desktop in Docker. Needs Docker |
 | `make lint` / `make lint-fix` | Checks or fixes code style (google-java-format, AOSP) |
 | `make install-app` | Copies the bundle into `~/CytoscapeConfiguration/3/apps/installed`, where a running Cytoscape picks it up |
 | `make fixture` | Runs the hello-world service app on `http://127.0.0.1:8765` (`PORT=n` to change) |
 | `make release VERSION=x.y.z` | Builds a release jar stamped with that version |
 
+### Tests
+
 The two test targets don't overlap: a test class named `*IT` needs Desktop and runs only in `make integration-test`; every other test runs only in `make test`.
 
-### Integration tests against Cytoscape Desktop
+- **`make test`** covers:
+  - unit tests;
+  - the client, commands and runs against the fixture service app over HTTP;
+  - the dialogs (under xvfb in CI);
+  - the architecture rules;
+  - the bundle manifest checks.
+  It also runs the result-action contract through the menu path on real networks and views.
+- **`make integration-test`** builds a Docker image from `docker/desktop` (Temurin 17 JDK, Xvfb, and Cytoscape from its Linux installer), installs the app jar, and runs the `*IT` tests over CyREST against the fixture service app on the host. It runs the same result-action contract through `serviceapps task call`, with real CX Support. One container serves the whole run; when a test fails, Cytoscape's logs are printed. To pick the Cytoscape version under test (the checksum is verified when given):
 
-`make integration-test` builds a Docker image from `docker/desktop` (Temurin 17 JDK, Xvfb, and Cytoscape from its Linux installer), starts it, copies the app jar into Cytoscape's installed-apps folder, and runs the `*IT` tests over CyREST. Cytoscape in the container reaches the fixture service app on the test host as `host.docker.internal`. One container serves the whole run and is removed at the end; when a test fails, Cytoscape's logs are printed.
+  ```
+  make integration-test CYTOSCAPE_INSTALLER_URL=<url of Cytoscape_x_y_z_unix.sh> CYTOSCAPE_INSTALLER_SHA256=<sha256>
+  ```
 
-Pick the Cytoscape version under test with the installer URL. The checksum is verified when given:
+  The default is the Cytoscape 3.10.5 installer in `build.gradle`; CI sets both values in `.github/workflows/ci.yml`.
 
-```
-make integration-test CYTOSCAPE_INSTALLER_URL=<url of Cytoscape_x_y_z_unix.sh> CYTOSCAPE_INSTALLER_SHA256=<sha256>
-```
+### The hello-world service app fixture
 
-The default is the Cytoscape 3.10.5 installer in `build.gradle`. CI sets both values explicitly in `.github/workflows/ci.yml`.
-
-## The hello-world service app fixture
-
-`src/fixture/java` holds a small service app that implements all six endpoints of the [service app spec](https://github.com/cytoscape/cytoscape-web/wiki/Specification-for-Service-App-in-Cytoscape-Web-(draft-v2)). It serves a catalogue of named scenarios, each at `/<scenario>`, so one server covers every case the tests need:
+`src/fixture/java` holds a small service app that implements all six endpoints of the service app specification. It serves a catalogue of named scenarios, each at `/<scenario>`, so one server covers every case the tests need:
 
 - `hello` and `hello-v2`: the same app, "Hello World", at versions 1.0 and 2.0;
 - `param-*`: every parameter type and attribute variant;
 - `input-*`: input columns and input definitions;
 - `menu-*`: menu placement cases;
 - `unsupported-*`: the spec's experimental parameter types and the `edgelist` format;
-- `result-*`: one per result action, plus multi-action, unknown and undeclared actions;
+- `result-*`: one per result action, plus multi-action, unknown and undeclared actions, and results that fail while being applied;
 - `failure-*`: slow, failed, never finishing, and a refused submission.
 
 `make fixture` prints every scenario's URL. Tests use it through `FixtureServerExtension`, which injects a running `FixtureServer` with a request log.
 
-## Releasing
+### Releasing
 
-Publish a GitHub release tagged `vX.Y.Z`. The release workflow runs the full suite, builds the jar with that version, checks its `Bundle-Version`, and attaches it to the release.
+Publish a GitHub release tagged `vX.Y.Z`. The release workflow runs the full suite, builds the jar with that version, checks its `Bundle-Version`, and attaches it to the release. Record the release in [CHANGELOG.md](CHANGELOG.md).
