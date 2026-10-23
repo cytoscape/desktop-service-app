@@ -16,7 +16,7 @@ Requires Cytoscape 3.10 or later, whose bundled CX Support app is used to exchan
 - **Install from the App Store.** A service app page's **Install in Cytoscape Desktop** button installs or upgrades the app in the running Desktop. Installed apps, with their metadata, are kept across restarts.
 - **Menu entries.** An app that names a Desktop menu (File, Edit, View, Select, Layout, Apps, Tools or Help) gets an entry at the place it asks for. An entry is greyed out while the network or selection it needs is missing, and, with the reason in its tooltip, when its service is unreachable or it uses something Desktop doesn't support yet.
 - **Generated input dialogs.** Each app's dialog is built from its metadata: text, drop-down, radio, checkbox and column-picker fields, with the app's own validation, and with the values used last time remembered.
-- **The Service Apps menu.** **Tools > Service Apps > Manage** lists every installed app with its live status, and runs or uninstalls it. **Tools > Service Apps > Install** opens the App Store's list of service apps in your web browser.
+- **The Service Apps menu.** **Apps > Service Apps > Manage** lists every installed app with its live status, and runs or uninstalls it. **Apps > Service Apps > Install** opens the App Store's list of service apps in your web browser.
 - **Results applied to your networks.** Selection, layouts, table columns, new networks, an in-place network update, or a web page. Results are applied fail-fast, as in Cytoscape Web, and a failure says whether the service or applying its result failed.
 - **Commands for agents and scripts.** Everything above is available as `serviceapps` commands, from Desktop's Command Line, over CyREST, and through the Cytoscape MCP Desktop app.
 

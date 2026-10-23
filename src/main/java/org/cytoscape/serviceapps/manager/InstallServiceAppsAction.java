@@ -7,7 +7,7 @@ import java.util.function.Supplier;
 import org.cytoscape.application.swing.AbstractCyAction;
 
 /**
- * {@code Tools > Service Apps > Install}: opens the App Store's list of service apps in the system
+ * {@code Apps > Service Apps > Install}: opens the App Store's list of service apps in the system
  * browser, where a service app is installed with its Install in Cytoscape Desktop button.
  */
 public class InstallServiceAppsAction extends AbstractCyAction {

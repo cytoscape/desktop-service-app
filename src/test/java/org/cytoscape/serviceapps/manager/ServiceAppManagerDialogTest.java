@@ -724,7 +724,7 @@ class ServiceAppManagerDialogTest {
                                         Confirmer.OPTION_PANE,
                                         AppStoreLink.from(null),
                                         opened::add));
-        assertEquals("Tools.Service Apps", action.getPreferredMenu());
+        assertEquals("Apps.Service Apps", action.getPreferredMenu());
         assertEquals("Manage", action.getName());
 
         onEdt(() -> action.actionPerformed(null));

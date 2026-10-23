@@ -16,11 +16,11 @@ Requirements: Cytoscape 3.10 or later. Service apps that work on whole networks 
 
 ## Install the Desktop Service App
 
-Install it from the Cytoscape App Store, or with **Apps > App Manager**, like any other app. Once it is installed, the **Tools > Service Apps** menu appears, with **Manage** and **Install**, even before you install any service apps.
+Install it from the Cytoscape App Store, or with **Apps > App Manager**, like any other app. Once it is installed, the **Apps > Service Apps** menu appears, with **Manage** and **Install**, even before you install any service apps.
 
 ## Install a service app from the App Store
 
-With Cytoscape running, choose **Tools > Service Apps > Install**, which opens the App Store's list of service apps in your web browser (the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property, or apps.cytoscape.org), and open a service app's page. The **Install in Cytoscape Desktop** button shows what will happen:
+With Cytoscape running, choose **Apps > Service Apps > Install**, which opens the App Store's list of service apps in your web browser (the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property, or apps.cytoscape.org), and open a service app's page. The **Install in Cytoscape Desktop** button shows what will happen:
 
 | Button | Meaning |
 |---|---|
@@ -68,7 +68,7 @@ It is also greyed out when the app can't run at all. Then its tooltip ends with 
 
 ## The Service Apps manager
 
-**Tools > Service Apps > Manage** lists every installed service app, including those without a menu entry:
+**Apps > Service Apps > Manage** lists every installed service app, including those without a menu entry:
 
 | Column | Shows |
 |---|---|
