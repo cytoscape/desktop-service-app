@@ -2,15 +2,23 @@ package org.cytoscape.serviceapps.manager;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -21,10 +29,12 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableCellRenderer;
 
@@ -37,6 +47,16 @@ public class ServiceAppManagerDialog extends JDialog {
 
     public static final String TITLE = "Service Apps";
     public static final String EMPTY_TEXT = "No Service Apps installed";
+
+    /** Points users who already know a service app's URL to the install command. */
+    public static final String COMMAND_HINT =
+            "If you know a service app's URL, install it from the Command Line"
+                    + " (View > Show Command Panel):";
+
+    public static final String INSTALL_COMMAND = "serviceapps install url=<service URL>";
+
+    /** Desktop's theme link color; a standard link blue outside Cytoscape, such as in tests. */
+    static final Color FALLBACK_LINK_COLOR = new Color(0x1a, 0x5f, 0xb4);
 
     static final int NAME = 0;
     static final int STATUS = 1;
@@ -53,9 +73,18 @@ public class ServiceAppManagerDialog extends JDialog {
     private final JPanel content = new JPanel(cards);
     private final JTable table;
     private final JLabel emptyLabel = new JLabel(EMPTY_TEXT, SwingConstants.CENTER);
+    private final JLabel appStoreLink = new JLabel();
 
+    /**
+     * @param appStore the App Store page to point to when no service apps are installed
+     * @param openUrl opens a web address in the system browser
+     */
     public ServiceAppManagerDialog(
-            Window owner, ServiceAppManagerModel model, Confirmer confirmer) {
+            Window owner,
+            ServiceAppManagerModel model,
+            Confirmer confirmer,
+            AppStoreLink appStore,
+            Consumer<String> openUrl) {
         super(owner, TITLE, ModalityType.MODELESS);
         this.model = model;
         this.confirmer = confirmer;
@@ -82,7 +111,7 @@ public class ServiceAppManagerDialog extends JDialog {
 
         emptyLabel.setName("emptyLabel");
         content.add(new JScrollPane(table), TABLE_CARD);
-        content.add(emptyLabel, EMPTY_CARD);
+        content.add(emptyState(appStore, openUrl), EMPTY_CARD);
 
         JButton close = new JButton("Close");
         close.setName("close");
@@ -118,11 +147,79 @@ public class ServiceAppManagerDialog extends JDialog {
                 });
 
         model.addChangeListener(() -> SwingUtilities.invokeLater(this::reload));
-        setPreferredSize(new Dimension(560, 320));
+        setPreferredSize(new Dimension(720, 340));
         pack();
         setLocationRelativeTo(owner);
         model.open();
         reload();
+    }
+
+    /**
+     * The centered "No Service Apps installed" message, then a line pointing to the App Store ("Go
+     * to apps.cytoscape.org and choose a service app to install", where the host is a link to the
+     * App Store's service apps page that opens the system browser), then how to install from the
+     * Command Line when the service app's URL is known.
+     */
+    private JPanel emptyState(AppStoreLink appStore, Consumer<String> openUrl) {
+        // Styled like Desktop's own links (the Starter Panel's): link-colored text, a hand
+        // cursor, underlined while the pointer is over it.
+        appStoreLink.setName("appStoreLink");
+        appStoreLink.setForeground(linkColor());
+        appStoreLink.setText(appStore.label());
+        appStoreLink.setToolTipText(appStore.getServiceList());
+        appStoreLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        appStoreLink.addMouseListener(
+                new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        openUrl.accept(appStore.getServiceList());
+                    }
+
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        appStoreLink.setText("<html><u>" + appStore.label() + "</u></html>");
+                    }
+
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        appStoreLink.setText(appStore.label());
+                    }
+                });
+
+        JPanel hint = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        hint.setName("appStoreHint");
+        hint.setOpaque(false);
+        hint.add(new JLabel("Go to "));
+        hint.add(appStoreLink);
+        hint.add(new JLabel(" and choose a service app to install"));
+
+        JLabel commandHint = new JLabel(COMMAND_HINT, SwingConstants.CENTER);
+        commandHint.setName("commandHint");
+
+        // Read-only but selectable, so the command can be copied into the Command Line.
+        JTextField command = new JTextField(INSTALL_COMMAND);
+        command.setName("installCommand");
+        command.setEditable(false);
+        command.setBorder(BorderFactory.createEmptyBorder());
+        command.setOpaque(false);
+        command.setHorizontalAlignment(SwingConstants.CENTER);
+        command.setFont(new Font(Font.MONOSPACED, Font.PLAIN, emptyLabel.getFont().getSize()));
+
+        JPanel lines = new JPanel(new GridLayout(4, 1, 0, 6));
+        lines.setOpaque(false);
+        lines.add(emptyLabel);
+        lines.add(hint);
+        lines.add(commandHint);
+        lines.add(command);
+
+        JPanel centered = new JPanel(new GridBagLayout());
+        centered.add(lines);
+        return centered;
+    }
+
+    static Color linkColor() {
+        Color color = UIManager.getColor("CyColor.complement(+1)");
+        return color != null ? color : FALLBACK_LINK_COLOR;
     }
 
     /** Re-reads the rows. Runs on the EDT. */
@@ -137,6 +234,11 @@ public class ServiceAppManagerDialog extends JDialog {
 
     public JLabel emptyLabel() {
         return emptyLabel;
+    }
+
+    /** The {@code apps.cytoscape.org} link shown when no service apps are installed. */
+    public JLabel appStoreLink() {
+        return appStoreLink;
     }
 
     /** Whether the table is the card showing, rather than the empty label. */

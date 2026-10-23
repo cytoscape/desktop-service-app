@@ -83,7 +83,7 @@ public final class RunPrecondition {
                     "The service for "
                             + name
                             + " can't be reached right now. Check your connection, or open"
-                            + " Tools > Service Apps > Manage Service Apps… to check it again.");
+                            + " Tools > Service Apps > Manage to check it again.");
         }
         String type = AppSupport.inputType(meta);
         if (type == null) {

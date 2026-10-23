@@ -43,6 +43,7 @@ class ServiceAppManagerDialogTest {
 
     private ManagerFixture f;
     private final List<String> questions = new ArrayList<>();
+    private final List<String> opened = new ArrayList<>();
     private boolean confirm;
     private ServiceAppManagerDialog dialog;
 
@@ -60,6 +61,10 @@ class ServiceAppManagerDialogTest {
     }
 
     private void open() throws Exception {
+        open(AppStoreLink.from(new java.util.Properties()));
+    }
+
+    private void open(AppStoreLink appStore) throws Exception {
         onEdt(
                 () ->
                         dialog =
@@ -69,7 +74,9 @@ class ServiceAppManagerDialogTest {
                                         (parent, title, question) -> {
                                             questions.add(question);
                                             return confirm;
-                                        }));
+                                        },
+                                        appStore,
+                                        opened::add));
     }
 
     private static void onEdt(Runnable action) throws Exception {
@@ -129,6 +136,69 @@ class ServiceAppManagerDialogTest {
                 javax.swing.SwingConstants.CENTER, dialog.emptyLabel().getHorizontalAlignment());
         assertTrue(dialog.emptyLabel().isVisible());
         assertFalse(dialog.showsTable());
+    }
+
+    /** The "Go to <host> and choose a service app to install" line, as displayed. */
+    private String appStoreHint() {
+        java.awt.Container hint =
+                (java.awt.Container) find(dialog.getContentPane(), "appStoreHint");
+        StringBuilder text = new StringBuilder();
+        for (Component part : hint.getComponents()) {
+            text.append(((javax.swing.JLabel) part).getText());
+        }
+        return text.toString();
+    }
+
+    /** The link shows {@code label}, underlines on hover, and opens {@code url} on click. */
+    private void assertLink(String label, String url) throws Exception {
+        assertEquals("Go to " + label + " and choose a service app to install", appStoreHint());
+        javax.swing.JLabel link = dialog.appStoreLink();
+        assertEquals(label, link.getText());
+        assertEquals(url, link.getToolTipText());
+        // Styled like Desktop's own links: link color, hand cursor, underline on hover only.
+        assertEquals(ServiceAppManagerDialog.linkColor(), link.getForeground());
+        assertEquals(java.awt.Cursor.HAND_CURSOR, link.getCursor().getType());
+
+        onEdt(() -> mouse(link, java.awt.event.MouseEvent.MOUSE_ENTERED));
+        assertEquals("<html><u>" + label + "</u></html>", link.getText());
+        onEdt(() -> mouse(link, java.awt.event.MouseEvent.MOUSE_EXITED));
+        assertEquals(label, link.getText());
+        assertTrue(opened.isEmpty(), "hovering opens nothing");
+
+        onEdt(() -> mouse(link, java.awt.event.MouseEvent.MOUSE_CLICKED));
+
+        assertEquals(List.of(url), opened);
+    }
+
+    @Test
+    void withNoAppStoreSettingTheLinkGoesToThePublicAppStoresServiceApps() throws Exception {
+        open(AppStoreLink.from(new java.util.Properties()));
+
+        assertLink("apps.cytoscape.org", "https://apps.cytoscape.org/apps/platform/service/");
+    }
+
+    @Test
+    void withAnAppStoreSettingTheLinkGoesToThatSitesServiceApps() throws Exception {
+        java.util.Properties properties = new java.util.Properties();
+        properties.setProperty("appStoreDownloadSiteUrl1", "https://test.apps.example.org/");
+
+        open(AppStoreLink.from(properties));
+
+        assertLink("test.apps.example.org", "https://test.apps.example.org/apps/platform/service/");
+    }
+
+    @Test
+    void withNoAppsTheDialogAlsoShowsTheInstallCommand() throws Exception {
+        open();
+
+        assertEquals(
+                "If you know a service app's URL, install it from the Command Line (View > Show"
+                        + " Command Panel):",
+                ((javax.swing.JLabel) find(dialog.getContentPane(), "commandHint")).getText());
+        javax.swing.JTextField command =
+                (javax.swing.JTextField) find(dialog.getContentPane(), "installCommand");
+        assertEquals("serviceapps install url=<service URL>", command.getText());
+        assertFalse(command.isEditable(), "selectable for copying, not editable");
     }
 
     @Test
@@ -294,9 +364,15 @@ class ServiceAppManagerDialogTest {
     void theMenuActionOpensOneDialogAndBringsItBack() throws Exception {
         ManageServiceAppsAction action =
                 new ManageServiceAppsAction(
-                        () -> new ServiceAppManagerDialog(null, f.model(), Confirmer.OPTION_PANE));
+                        () ->
+                                new ServiceAppManagerDialog(
+                                        null,
+                                        f.model(),
+                                        Confirmer.OPTION_PANE,
+                                        AppStoreLink.from(null),
+                                        opened::add));
         assertEquals("Tools.Service Apps", action.getPreferredMenu());
-        assertEquals("Manage Service Apps…", action.getName());
+        assertEquals("Manage", action.getName());
 
         onEdt(() -> action.actionPerformed(null));
         ServiceAppManagerDialog first = action.dialog();
@@ -314,6 +390,20 @@ class ServiceAppManagerDialogTest {
     private void assertNoCheckRuns() {
         f.checks.runAll();
         verify(f.registry, never()).setReachable(anyString(), anyBoolean());
+    }
+
+    private static void mouse(Component target, int id) {
+        target.dispatchEvent(
+                new java.awt.event.MouseEvent(
+                        target,
+                        id,
+                        System.currentTimeMillis(),
+                        0,
+                        2,
+                        2,
+                        1,
+                        false,
+                        java.awt.event.MouseEvent.BUTTON1));
     }
 
     private static Component find(java.awt.Container container, String name) {

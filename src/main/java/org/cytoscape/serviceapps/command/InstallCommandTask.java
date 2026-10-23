@@ -1,6 +1,7 @@
 package org.cytoscape.serviceapps.command;
 
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.gson.JsonObject;
 
@@ -13,12 +14,14 @@ import org.cytoscape.work.TaskMonitor;
 import org.cytoscape.work.Tunable;
 
 /**
- * {@code serviceapps install name= version= url=}: installs a service app, or replaces the
+ * {@code serviceapps install url= [name=] [version=]}: installs a service app, or replaces the
  * installed one with the same name.
  *
- * <p>Fetches the app's metadata first and refuses if the service reports a different name or
- * version than the caller asked for, which catches a mistyped or stale URL. Like a jar app install
- * from the App Store, there is no confirmation prompt.
+ * <p>Fetches the app's metadata first and installs it under the name and version the service
+ * reports. {@code name} and {@code version} are optional checks: when given, the install is refused
+ * if the service reports something different, which catches a mistyped or stale URL. The App Store
+ * page passes both, so the release it shows is the one installed. Like a jar app install from the
+ * App Store, there is no confirmation prompt.
  */
 public class InstallCommandTask extends JsonResultTask {
 
@@ -26,26 +29,32 @@ public class InstallCommandTask extends JsonResultTask {
     public static final String DESCRIPTION =
             "Install or upgrade a service app from its service URL";
     public static final String LONG_DESCRIPTION =
-            "Fetches the service app's metadata from url, checks that it reports the given name"
-                    + " and version, and installs it. An installed app with the same name is"
-                    + " replaced, which is how upgrades work. The text reply contains 'installed'"
-                    + " on success.";
+            "Fetches the service app's metadata from url and installs it under the name and"
+                    + " version the service reports. name and version are optional: when given,"
+                    + " the install is refused unless the service reports exactly that name or"
+                    + " version. An installed app with the same name is replaced, which is how"
+                    + " upgrades work. Returns the name and version installed; the text reply"
+                    + " contains 'installed' on success.";
     public static final String EXAMPLE_JSON =
             "{\"status\":\"installed\",\"name\":\"Hello World\",\"version\":\"1.0\"}";
 
     @Tunable(
-            description = "Service app name",
-            longDescription = "The name the service app reports in its metadata.",
+            description = "Service app name (optional check)",
+            longDescription =
+                    "Optional. The name the service app must report in its metadata; the install"
+                            + " is refused if it reports another. Omitted: the reported name is"
+                            + " used.",
             exampleStringValue = "Hello World",
-            required = true,
             context = "nogui")
     public String name;
 
     @Tunable(
-            description = "Service app version",
-            longDescription = "The version the service app reports in its metadata.",
+            description = "Service app version (optional check)",
+            longDescription =
+                    "Optional. The version the service app must report in its metadata; the"
+                            + " install is refused if it reports another. Omitted: the reported"
+                            + " version is used.",
             exampleStringValue = "1.0",
-            required = true,
             context = "nogui")
     public String version;
 
@@ -67,40 +76,58 @@ public class InstallCommandTask extends JsonResultTask {
 
     @Override
     public void run(TaskMonitor monitor) {
-        String wantedName = required(name, "name");
-        String wantedVersion = required(version, "version");
         ServiceAppClient client = clients.forUrl(required(url, "url"));
-        monitor.setTitle("Install service app " + wantedName);
+        String wantedName = optional(name);
+        String wantedVersion = optional(version);
+        monitor.setTitle(
+                "Install service app " + (wantedName != null ? wantedName : client.baseUrl()));
 
         ServiceMetadata meta;
         try {
             meta = client.getMetadata();
         } catch (ServiceAppException e) {
             throw new IllegalStateException(
-                    "could not install " + wantedName + ": " + e.getMessage(), e);
+                    "could not install "
+                            + (wantedName != null
+                                    ? wantedName
+                                    : "the service app at " + client.baseUrl())
+                            + ": "
+                            + e.getMessage(),
+                    e);
         }
-        if (!Objects.equals(wantedName, meta.name)
-                || !Objects.equals(wantedVersion, meta.version)) {
+
+        List<String> problems = new ArrayList<>();
+        check("name", wantedName, meta.name, problems);
+        check("version", wantedVersion, meta.version, problems);
+        if (!problems.isEmpty()) {
             throw new IllegalStateException(
                     "the service at "
                             + client.baseUrl()
-                            + " reports name '"
-                            + meta.name
-                            + "' version '"
-                            + meta.version
-                            + "', not name '"
-                            + wantedName
-                            + "' version '"
-                            + wantedVersion
-                            + "'");
+                            + " "
+                            + String.join(" and ", problems)
+                            + "; nothing was installed");
         }
 
-        registry.install(wantedName, wantedVersion, client.baseUrl(), meta);
+        registry.install(meta.name, meta.version, client.baseUrl(), meta);
 
         JsonObject json = new JsonObject();
         json.addProperty("status", "installed");
-        json.addProperty("name", wantedName);
-        json.addProperty("version", wantedVersion);
-        setResult(json, "installed " + wantedName + " " + wantedVersion);
+        json.addProperty("name", meta.name);
+        json.addProperty("version", meta.version);
+        setResult(json, "installed " + meta.name + " " + meta.version);
+    }
+
+    /** A blank argument counts as omitted. */
+    private static String optional(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
+    }
+
+    /** The service must report a value; when the caller gave one, it must match exactly. */
+    private static void check(String field, String wanted, String reported, List<String> problems) {
+        if (reported == null || reported.isBlank()) {
+            problems.add("reports no " + field);
+        } else if (wanted != null && !wanted.equals(reported)) {
+            problems.add("reports " + field + " '" + reported + "', not '" + wanted + "'");
+        }
     }
 }

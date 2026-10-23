@@ -16,11 +16,11 @@ Requirements: Cytoscape 3.10 or later. Service apps that work on whole networks 
 
 ## Install the Desktop Service App
 
-Install it from the Cytoscape App Store, or with **Apps > App Manager**, like any other app. Once it is installed, **Tools > Service Apps > Manage Service Apps…** appears, even before you install any service apps.
+Install it from the Cytoscape App Store, or with **Apps > App Manager**, like any other app. Once it is installed, the **Tools > Service Apps** menu appears, with **Manage** and **Install**, even before you install any service apps.
 
 ## Install a service app from the App Store
 
-With Cytoscape running, open the service app's page in the App Store. The **Install in Cytoscape Desktop** button shows what will happen:
+With Cytoscape running, choose **Tools > Service Apps > Install**, which opens the App Store's list of service apps in your web browser (the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property, or apps.cytoscape.org), and open a service app's page. The **Install in Cytoscape Desktop** button shows what will happen:
 
 | Button | Meaning |
 |---|---|
@@ -65,7 +65,7 @@ Hover over the entry to see why. The reason is one of these:
 
 ## The Service Apps manager
 
-**Tools > Service Apps > Manage Service Apps…** lists every installed service app, including those without a menu entry:
+**Tools > Service Apps > Manage** lists every installed service app, including those without a menu entry:
 
 | Column | Shows |
 |---|---|
@@ -74,7 +74,7 @@ Hover over the entry to see why. The reason is one of these:
 | **Invoke** | Tick to run the app. It opens the same dialog as the menu entry. Greyed out for an app that can't run, with the reason in its tooltip. |
 | **Uninstall** | Tick to remove the app. You are asked "Uninstall <name>? Are you sure?"; **Cancel** leaves everything as it was. |
 
-The manager stays open while you work and updates on its own when apps are installed or removed elsewhere, such as from the App Store page. Close it with **Close**, the window's close button, or Escape. With no service apps installed, it says **No Service Apps installed**.
+The manager stays open while you work and updates on its own when apps are installed or removed elsewhere, such as from the App Store page. Close it with **Close**, the window's close button, or Escape. With no service apps installed, it says **No Service Apps installed**, with a link that opens the App Store's service apps page in your web browser so you can choose one to install: [apps.cytoscape.org/apps/platform/service/](https://apps.cytoscape.org/apps/platform/service/), or the same page on the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property (**Edit > Preferences > Properties**, `cytoscape3`), when that is set. If you already know a service app's URL, it also shows the command to install it from the Command Line (**View > Show Command Panel**): `serviceapps install url=<service URL>`.
 
 ## What a run does to your networks
 
@@ -134,7 +134,7 @@ Every feature above is also available as commands in the `serviceapps` namespace
 | Command | Does |
 |---|---|
 | `serviceapps list` | The installed service apps: name, version, web address, and whether the service last answered |
-| `serviceapps install name= version= url=` | Installs or upgrades a service app |
+| `serviceapps install url= [name=] [version=]` | Installs or upgrades the service app at `url`, under the name and version it reports. `name` and `version` are optional checks: when given, the install is refused if the service reports something else |
 | `serviceapps uninstall name=` | Uninstalls a service app |
 | `serviceapps status name=` | Checks that a service answers now |
 | `serviceapps describe name=` | An app's metadata and the JSON Schemas of what to pass to `task call` |

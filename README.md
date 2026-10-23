@@ -16,7 +16,7 @@ Requires Cytoscape 3.10 or later, whose bundled CX Support app is used to exchan
 - **Install from the App Store.** A service app page's **Install in Cytoscape Desktop** button installs or upgrades the app in the running Desktop. Installed apps, with their metadata, are kept across restarts.
 - **Menu entries.** An app that names a Desktop menu (File, Edit, View, Select, Layout, Apps, Tools or Help) gets an entry at the place it asks for. An entry is greyed out, with the reason in its tooltip, when the app can't run: it needs a selection, its service is unreachable, or it uses something Desktop doesn't support yet.
 - **Generated input dialogs.** Each app's dialog is built from its metadata: text, drop-down, radio, checkbox and column-picker fields, with the app's own validation, and with the values used last time remembered.
-- **The Service Apps manager.** **Tools > Service Apps > Manage Service Apps…** lists every installed app with its live status, and runs or uninstalls it.
+- **The Service Apps menu.** **Tools > Service Apps > Manage** lists every installed app with its live status, and runs or uninstalls it. **Tools > Service Apps > Install** opens the App Store's list of service apps in your web browser.
 - **Results applied to your networks.** Selection, layouts, table columns, new networks, an in-place network update, or a web page. Results are applied fail-fast, as in Cytoscape Web, and a failure says whether the service or applying its result failed.
 - **Commands for agents and scripts.** Everything above is available as `serviceapps` commands, from Desktop's Command Line, over CyREST, and through the Cytoscape MCP Desktop app.
 
@@ -27,7 +27,7 @@ All commands are in the `serviceapps` namespace, take named arguments, and retur
 | Command | Does |
 |---|---|
 | `serviceapps list` | The installed service apps: `[{name, version, url, reachable}]` |
-| `serviceapps install name= version= url=` | Installs or upgrades a service app, after checking that its service reports that name and version |
+| `serviceapps install url= [name=] [version=]` | Installs or upgrades the service app at `url`, under the name and version it reports. `name` and `version` are optional checks that the service must match |
 | `serviceapps uninstall name=` | Uninstalls a service app and removes its menu entry |
 | `serviceapps status name=` | Checks that the app's service answers now |
 | `serviceapps describe name=` | The app's metadata and the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for it |

@@ -44,7 +44,9 @@ import org.cytoscape.serviceapps.form.FormSpecBuilder;
 import org.cytoscape.serviceapps.form.ServiceAppFormHandlerFactory;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
 import org.cytoscape.serviceapps.launch.SwingUserMessages;
+import org.cytoscape.serviceapps.manager.AppStoreLink;
 import org.cytoscape.serviceapps.manager.Confirmer;
+import org.cytoscape.serviceapps.manager.InstallServiceAppsAction;
 import org.cytoscape.serviceapps.manager.ManageServiceAppsAction;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerDialog;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerModel;
@@ -141,14 +143,17 @@ public class CyActivator extends AbstractCyActivator {
                 new Properties());
         LOGGER.info("Service app form handler registered");
 
+        OpenBrowser browser = getService(bc, OpenBrowser.class);
+        @SuppressWarnings("unchecked")
+        CyProperty<Properties> cytoscapeProperties =
+                getService(bc, CyProperty.class, "(cyPropertyName=cytoscape3.props)");
         ActiveRuns active = new ActiveRuns();
         ServiceAppRunFactory runs =
                 new ServiceAppRunFactory(
                         registry,
                         clients,
                         new RequestBuilder(cx2),
-                        RenderServiceAppUI.standard(
-                                viewManager, getService(bc, OpenBrowser.class), cx2, applications),
+                        RenderServiceAppUI.standard(viewManager, browser, cx2, applications),
                         () -> RunSettings.from(properties.getProperties()),
                         active);
         ServiceAppLauncher launcher =
@@ -175,9 +180,17 @@ public class CyActivator extends AbstractCyActivator {
                                         swing.getJFrame(),
                                         new ServiceAppManagerModel(
                                                 registry, launcher, checker, background),
-                                        Confirmer.OPTION_PANE));
+                                        Confirmer.OPTION_PANE,
+                                        // Read each time, so a changed App Store setting applies.
+                                        AppStoreLink.from(cytoscapeProperties.getProperties()),
+                                        url -> browser.openURL(url, false)));
         registerService(bc, manage, CyAction.class, new Properties());
-        LOGGER.info("Manage Service Apps… registered under Tools > Service Apps");
+        InstallServiceAppsAction install =
+                new InstallServiceAppsAction(
+                        () -> AppStoreLink.from(cytoscapeProperties.getProperties()),
+                        url -> browser.openURL(url, false));
+        registerService(bc, install, CyAction.class, new Properties());
+        LOGGER.info("Service Apps menu registered: Tools > Service Apps > Manage, Install");
 
         runRegistry = new ServiceAppRunRegistry(active);
         UiTargetResolver targets = new UiTargetResolver(networkManager, viewManager, applications);

@@ -123,7 +123,9 @@ class DesktopUiWiringIT {
 
         assertTrue(logs.startsWith(STARTED_UI), "the dialog field handler was registered");
         assertTrue(
-                logs.contains("Manage Service Apps… registered under Tools > Service Apps"), logs);
+                logs.contains(
+                        "Service Apps menu registered: Tools > Service Apps > Manage, Install"),
+                logs);
         assertTrue(
                 desktop.logs().contains("CX Support CX2 writer found (cx2NetworkWriterFactory)"));
         assertTrue(
