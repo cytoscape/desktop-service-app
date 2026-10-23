@@ -34,12 +34,14 @@ public final class DesktopContainer implements AutoCloseable {
             "desktop-service-app-it-" + UUID.randomUUID().toString().substring(0, 8);
     private final String image;
     private final Path jar;
+    private String installedJar;
     private final int port;
     private final CyRest cyrest;
 
     private DesktopContainer(String image, Path jar, int port) {
         this.image = image;
         this.jar = jar;
+        this.installedJar = jar.getFileName().toString();
         this.port = port;
         this.cyrest = new CyRest("http://127.0.0.1:" + port);
     }
@@ -78,6 +80,22 @@ public final class DesktopContainer implements AutoCloseable {
         docker("restart", name);
         awaitCyRest();
         awaitApp();
+    }
+
+    /** The app jar under test. */
+    public Path appJar() {
+        return jar;
+    }
+
+    /**
+     * Replaces the installed app jar with {@code newJar}, as an upgrade or downgrade of the app
+     * does, and restarts Cytoscape so only the new jar is loaded.
+     */
+    public void replaceApp(Path newJar) {
+        docker("exec", name, "rm", "-f", APPS_DIR + installedJar);
+        docker("cp", newJar.toString(), name + ":" + APPS_DIR);
+        installedJar = newJar.getFileName().toString();
+        restart();
     }
 
     /** Cytoscape's console output and framework log, for assertions and failure reports. */

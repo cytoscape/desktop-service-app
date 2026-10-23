@@ -1,5 +1,6 @@
 package org.cytoscape.serviceapps.registry;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -36,6 +37,33 @@ public class ServiceAppRegistry {
     private final RegistryStore store;
     private final Map<String, RegistryStore.Entry> apps;
     private final List<RegistryListener> listeners = new CopyOnWriteArrayList<>();
+
+    /**
+     * The registry's directory, the same for every version of the Desktop Service App.
+     *
+     * <p>Desktop's folder for an app's data has the app's version in its name ({@code
+     * app-data/org.cytoscape.serviceapps-0.1.0}), so data kept there is left behind by an upgrade.
+     * The registry is kept beside it instead, in a folder named by the bundle alone ({@code
+     * app-data/org.cytoscape.serviceapps}). Desktop always adds a version to its own folders, so
+     * this one is never Desktop's.
+     *
+     * @param versionedAppDirectory Desktop's folder for this version of the app, from {@code
+     *     CyApplicationConfiguration.getAppConfigurationDirectoryLocation}
+     * @param bundleName the app's bundle symbolic name
+     */
+    public static Path directoryFor(File versionedAppDirectory, String bundleName) {
+        if (versionedAppDirectory == null || versionedAppDirectory.getParentFile() == null) {
+            throw new IllegalStateException(
+                    "Cytoscape gave no app data folder for "
+                            + bundleName
+                            + ": "
+                            + versionedAppDirectory);
+        }
+        if (bundleName == null || bundleName.isBlank()) {
+            throw new IllegalStateException("the app's bundle has no symbolic name");
+        }
+        return versionedAppDirectory.getParentFile().toPath().resolve(bundleName);
+    }
 
     /** A registry stored in {@code service-apps.json} inside {@code directory}. */
     public static ServiceAppRegistry inDirectory(Path directory) {

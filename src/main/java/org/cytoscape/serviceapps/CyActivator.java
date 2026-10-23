@@ -1,6 +1,5 @@
 package org.cytoscape.serviceapps;
 
-import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -90,8 +89,12 @@ public class CyActivator extends AbstractCyActivator {
     @Override
     public void start(BundleContext bc) {
         CyApplicationConfiguration configuration = getService(bc, CyApplicationConfiguration.class);
-        File directory = configuration.getAppConfigurationDirectoryLocation(CyActivator.class);
-        ServiceAppRegistry registry = ServiceAppRegistry.inDirectory(directory.toPath());
+        ServiceAppRegistry registry =
+                ServiceAppRegistry.inDirectory(
+                        ServiceAppRegistry.directoryFor(
+                                configuration.getAppConfigurationDirectoryLocation(
+                                        CyActivator.class),
+                                bc.getBundle().getSymbolicName()));
 
         ServiceAppsProperties properties = new ServiceAppsProperties();
         Properties cyPropertyProps = new Properties();

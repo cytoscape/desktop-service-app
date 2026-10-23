@@ -117,6 +117,7 @@ Updating an HCX (hierarchy) network in place isn't supported yet; that action is
 ## Restarts, upgrades and uninstalling
 
 - **Restarts.** Installed service apps are kept across restarts, with their menu entries. Each time Cytoscape starts, the app asks every service for its latest details in the background, so menus appear even when you're offline.
+- **Upgrading the Desktop Service App.** Installed service apps, their menu entries and remembered dialog values are kept when the Desktop Service App itself is upgraded or downgraded. They are stored in `CytoscapeConfiguration/app-data/org.cytoscape.serviceapps/service-apps.json`, a folder every version shares.
 - **Upgrades.** An app whose service now reports a different version is upgraded in place.
 - **Uninstalling.** Uninstall from the manager, or with `serviceapps uninstall`, removes the app and its menu entry and stops its runs in progress.
 
