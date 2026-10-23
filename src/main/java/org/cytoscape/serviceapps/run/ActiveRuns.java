@@ -14,8 +14,16 @@ public class ActiveRuns {
 
     private final Map<String, Set<ServiceAppRun>> runs = new ConcurrentHashMap<>();
 
+    /** Adds the run in the same atomic step that {@link #finished} removes an emptied set in. */
     void started(ServiceAppRun run) {
-        runs.computeIfAbsent(run.appName(), name -> ConcurrentHashMap.newKeySet()).add(run);
+        runs.compute(
+                run.appName(),
+                (name, forApp) -> {
+                    Set<ServiceAppRun> set =
+                            forApp != null ? forApp : ConcurrentHashMap.newKeySet();
+                    set.add(run);
+                    return set;
+                });
     }
 
     void finished(ServiceAppRun run) {

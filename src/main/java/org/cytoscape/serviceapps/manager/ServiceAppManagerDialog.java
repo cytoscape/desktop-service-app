@@ -51,8 +51,9 @@ import org.cytoscape.serviceapps.ui.DesktopColors;
  * <ul>
  *   <li>A single click highlights a row in light red and enables Uninstall for it, once the
  *       double-click interval has passed, so the first click of a double click shows no red.
- *   <li>A double click on an app that is Online and runnable invokes it: the row turns light blue
- *       while its input form is open. A double click on any other app does nothing.
+ *   <li>A double click on an app that is Online and runnable, or Enter on its selected row, invokes
+ *       it: the row turns light blue while its input form is open. On any other app, both do
+ *       nothing.
  *   <li>A click anywhere else in the dialog clears the highlight, and with it Uninstall.
  * </ul>
  */
@@ -148,6 +149,19 @@ public class ServiceAppManagerDialog extends JDialog {
         table.getColumnModel().getColumn(STATUS).setCellRenderer(new StatusRenderer());
         table.getSelectionModel().addListSelectionListener(e -> updateUninstall());
         clickConfirmed.setRepeats(false);
+        // Enter runs the selected app, as a double click does; it replaces the table's default of
+        // moving to the next row, and keeps Enter from pressing Close.
+        table.getInputMap(JComponent.WHEN_FOCUSED)
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "runSelected");
+        table.getActionMap()
+                .put(
+                        "runSelected",
+                        new AbstractAction() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                invokeAt(table.getSelectedRow());
+                            }
+                        });
         table.addMouseListener(
                 new MouseAdapter() {
                     @Override

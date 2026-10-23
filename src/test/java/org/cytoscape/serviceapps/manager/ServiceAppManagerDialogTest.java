@@ -466,6 +466,64 @@ class ServiceAppManagerDialogTest {
         assertEquals("plain, selected row -1, uninstall false", state(hello));
     }
 
+    /**
+     * Enter on the table, through whatever the table binds Enter to when it has the focus. Returns
+     * what the dialog shows right after, before queued work such as the launch runs.
+     */
+    private String pressEnter(String name) throws Exception {
+        Object key =
+                table().getInputMap(JComponent.WHEN_FOCUSED)
+                        .get(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0));
+        String[] after = new String[1];
+        onEdt(
+                () -> {
+                    table().getActionMap()
+                            .get(key)
+                            .actionPerformed(
+                                    new ActionEvent(table(), ActionEvent.ACTION_PERFORMED, ""));
+                    after[0] = name == null ? null : rowState(rowOf(name));
+                });
+        return after[0];
+    }
+
+    @Test
+    void enterRunsTheSelectedOnlineAppWithTheRowLightBlueUntilTheFormCloses() throws Exception {
+        String hello = f.install("hello");
+        open();
+        f.checks.runAll();
+        flush();
+        select(hello);
+        List<String> launches = recordLaunches(hello);
+
+        assertEquals("blue, selected row -1, uninstall false", pressEnter(hello));
+        flush();
+
+        assertEquals(List.of(hello + ": blue, selected row -1, uninstall false"), launches);
+        verify(f.launcher, times(1)).launch(hello);
+        assertEquals("plain, selected row -1, uninstall false", state(hello));
+    }
+
+    @Test
+    void enterOnAnAppThatCantRunOrWithNothingSelectedDoesNothing() throws Exception {
+        String checking = f.install("hello");
+        String offline = f.installOffline("Offline app");
+        open();
+        assertEquals(
+                "Checking…", table().getValueAt(rowOf(checking), ServiceAppManagerDialog.STATUS));
+
+        assertEquals(null, pressEnter(null), "nothing selected");
+        for (String name : List.of(checking, offline)) {
+            select(name);
+            assertEquals(
+                    "red, selected row " + rowOf(name) + ", uninstall true",
+                    pressEnter(name),
+                    "still selected, nothing run: " + name);
+        }
+        flush();
+
+        verify(f.launcher, never()).launch(anyString());
+    }
+
     @Test
     void doubleClickingAnAppThatCantRunDoesNothingAndItsTooltipSaysWhy() throws Exception {
         String checking = f.install("hello");
