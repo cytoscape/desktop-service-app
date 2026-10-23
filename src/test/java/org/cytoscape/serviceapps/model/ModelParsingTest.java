@@ -1,10 +1,12 @@
 package org.cytoscape.serviceapps.model;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -147,8 +149,8 @@ class ModelParsingTest {
         TaskRequest request =
                 new TaskRequest(
                         "Hello World",
-                        com.google.gson.JsonParser.parseString("{\"a\":1}"),
-                        java.util.Map.of("Greeting", "hi"));
+                        JsonParser.parseString("{\"a\":1}"),
+                        Map.of("Greeting", "hi"));
 
         assertEquals(
                 "{\"algorithm\":\"Hello World\",\"data\":{\"a\":1},\"parameters\":{\"Greeting\":\"hi\"}}",

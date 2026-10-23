@@ -48,7 +48,7 @@ lint:
 lint-fix:
 	$(GRADLE) spotlessApply
 
-## fixture: run the hello-world service app on http://localhost:8765 (PORT=n to change)
+## fixture: run the hello-world service app on http://127.0.0.1:8765 (PORT=n to change)
 fixture:
 	$(GRADLE) runFixture -Pport=$(or $(PORT),8765)
 

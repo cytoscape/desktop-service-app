@@ -1,6 +1,7 @@
 package org.cytoscape.serviceapps.form;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +101,6 @@ public record FormValues(
                     (key, values) ->
                             copy.put(key, values == null ? List.of() : List.copyOf(values)));
         }
-        return java.util.Collections.unmodifiableMap(copy);
+        return Collections.unmodifiableMap(copy);
     }
 }

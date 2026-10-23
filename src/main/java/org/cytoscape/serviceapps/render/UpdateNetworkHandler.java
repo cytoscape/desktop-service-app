@@ -82,10 +82,11 @@ public class UpdateNetworkHandler implements ActionHandler {
                 element = network.addNode();
                 ids.assign(element, node.id());
             } else if (!network.containsNode(element)) {
+                // In the collection but not this network; every Desktop network is a subnetwork.
                 ((CySubNetwork) network).addNode(element);
             }
             nodes.put(node.id(), element);
-            setValues(network, element, document, "nodes", node.values(), report);
+            setValues(network, element, document, "nodes", node.values());
         }
 
         Set<Long> keptEdges = new HashSet<>();
@@ -98,7 +99,7 @@ public class UpdateNetworkHandler implements ActionHandler {
             } else if (!network.containsEdge(element)) {
                 ((CySubNetwork) network).addEdge(element);
             }
-            setValues(network, element, document, "edges", edge.values(), report);
+            setValues(network, element, document, "edges", edge.values());
         }
 
         List<CyEdge> edgesToRemove = new ArrayList<>();
@@ -118,7 +119,7 @@ public class UpdateNetworkHandler implements ActionHandler {
         }
         network.removeNodes(nodesToRemove);
 
-        setNetworkAttributes(network, document, report);
+        setValues(network, network, document, "networkAttributes", document.networkAttributes);
         applyPositions(network, document, nodes);
         if (!nodesToRemove.isEmpty() || !edgesToRemove.isEmpty()) {
             report.note(
@@ -151,19 +152,8 @@ public class UpdateNetworkHandler implements ActionHandler {
     private static void check(
             CyTable table, Cx2Document document, String kind, Map<String, JsonElement> values) {
         for (Map.Entry<String, JsonElement> value : values.entrySet()) {
-            Cx2Document.Attribute declared = document.declared(kind, value.getKey());
-            ColumnType type = declared != null ? declared.type() : CxValues.infer(value.getValue());
-            CyColumn existing = table.getColumn(value.getKey());
-            if (existing != null && !CxValues.typeOf(existing).equals(type)) {
-                throw new IllegalArgumentException(
-                        "updateNetwork attribute '"
-                                + value.getKey()
-                                + "' is "
-                                + CxValues.describe(CxValues.typeOf(existing))
-                                + " in Desktop but "
-                                + CxValues.describe(type)
-                                + " in the result");
-            }
+            ColumnType type = document.typeOf(kind, value.getKey(), value.getValue());
+            CxValues.requireType(table, value.getKey(), type, "updateNetwork attribute");
             CxValues.convert(value.getValue(), type);
         }
     }
@@ -188,29 +178,13 @@ public class UpdateNetworkHandler implements ActionHandler {
             CyIdentifiable element,
             Cx2Document document,
             String kind,
-            Map<String, JsonElement> values,
-            RenderReport report) {
+            Map<String, JsonElement> values) {
         CyRow row = network.getRow(element);
         CyTable table = row.getTable();
         for (Map.Entry<String, JsonElement> value : values.entrySet()) {
-            Cx2Document.Attribute declared = document.declared(kind, value.getKey());
-            ColumnType type = declared != null ? declared.type() : CxValues.infer(value.getValue());
+            ColumnType type = document.typeOf(kind, value.getKey(), value.getValue());
             CxValues.column(table, value.getKey(), type, null);
             row.set(value.getKey(), CxValues.convert(value.getValue(), type));
-        }
-    }
-
-    private static void setNetworkAttributes(
-            CyNetwork network, Cx2Document document, RenderReport report) {
-        CyRow row = network.getRow(network);
-        CyTable table = row.getTable();
-        for (Map.Entry<String, JsonElement> attribute : document.networkAttributes.entrySet()) {
-            Cx2Document.Attribute declared =
-                    document.declared("networkAttributes", attribute.getKey());
-            ColumnType type =
-                    declared != null ? declared.type() : CxValues.infer(attribute.getValue());
-            CxValues.column(table, attribute.getKey(), type, null);
-            row.set(attribute.getKey(), CxValues.convert(attribute.getValue(), type));
         }
     }
 

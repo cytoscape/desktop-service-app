@@ -12,6 +12,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.model.CyEdge;
+import org.cytoscape.model.CyIdentifiable;
 import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNode;
 import org.cytoscape.model.subnetwork.CyRootNetwork;
@@ -20,6 +21,7 @@ import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
+import org.cytoscape.view.model.CyNetworkViewManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,7 +36,7 @@ class RequestBuilderTest {
     private final FakeCx2Support cx2 =
             new FakeCx2Support(
                     TestNetworks.support().getNetworkManager(),
-                    mock(org.cytoscape.view.model.CyNetworkViewManager.class),
+                    mock(CyNetworkViewManager.class),
                     null);
     private final RequestBuilder builder = new RequestBuilder(cx2);
 
@@ -85,7 +87,7 @@ class RequestBuilderTest {
         return meta;
     }
 
-    private void select(org.cytoscape.model.CyIdentifiable... elements) {
+    private void select(CyIdentifiable... elements) {
         for (var element : elements) {
             network.getRow(element).set(CyNetwork.SELECTED, true);
         }
@@ -95,7 +97,7 @@ class RequestBuilderTest {
         return new HashSet<>(data.getAsJsonObject().getAsJsonObject("rows").keySet());
     }
 
-    private String id(org.cytoscape.model.CyIdentifiable element) {
+    private String id(CyIdentifiable element) {
         return Long.toString(IdMapper.of(network).id(element));
     }
 

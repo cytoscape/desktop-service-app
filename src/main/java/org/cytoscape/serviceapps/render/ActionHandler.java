@@ -12,7 +12,8 @@ public interface ActionHandler {
     boolean needsNetwork();
 
     /**
-     * @throws RuntimeException if the action can't be applied; the renderer reports it and goes on
+     * @throws RuntimeException if the action can't be applied; the renderer stops the run there.
+     *     Check before writing, so a failed action changes nothing.
      */
     void apply(JsonElement data, UIInfo ui, RenderReport report);
 }

@@ -3,6 +3,8 @@ package org.cytoscape.serviceapps.client;
 import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -64,5 +66,16 @@ class ServiceAppStatusCheckerTest {
 
         assertFalse(result.reachable());
         assertNull(result.httpStatus());
+    }
+
+    @ParameterizedTest(name = "HTTP {0}")
+    @CsvSource({"199, false", "200, true", "299, true", "300, false", "301, false", "304, false"})
+    void onlyA2xxReplyIsReachable(int status, boolean reachable) {
+        transport.reply(status, "{\"status\":\"ok\"}");
+
+        ServiceAppStatusChecker.Result result = checker.check(URL);
+
+        assertEquals(reachable, result.reachable());
+        assertEquals(status, result.httpStatus());
     }
 }

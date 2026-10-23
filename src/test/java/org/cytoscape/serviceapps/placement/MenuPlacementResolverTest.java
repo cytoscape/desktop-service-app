@@ -1,5 +1,6 @@
 package org.cytoscape.serviceapps.placement;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -17,7 +18,7 @@ import org.cytoscape.serviceapps.model.ServiceMetadata;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The menu placement table in cytoscape/cytoscape#44. */
+/** Where each {@code cyWebMenuItem} puts an app's menu entry, and when it gets none. */
 class MenuPlacementResolverTest {
 
     private static ServiceMetadata meta(String root, Object... nameGravityPairs) {
@@ -25,7 +26,7 @@ class MenuPlacementResolverTest {
         meta.name = "Hello World";
         meta.cyWebMenuItem = new CyWebMenuItem();
         meta.cyWebMenuItem.root = root;
-        meta.cyWebMenuItem.path = new java.util.ArrayList<>();
+        meta.cyWebMenuItem.path = new ArrayList<>();
         for (int i = 0; i < nameGravityPairs.length; i += 2) {
             CyWebMenuItem.PathElement element = new CyWebMenuItem.PathElement();
             element.name = (String) nameGravityPairs[i];

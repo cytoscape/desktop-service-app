@@ -14,9 +14,9 @@ Requires Cytoscape 3.10 or later, whose bundled CX Support app is used to exchan
 ## What it adds to Cytoscape Desktop
 
 - **Install from the App Store.** A service app page's **Install in Cytoscape Desktop** button installs or upgrades the app in the running Desktop. Installed apps, with their metadata, are kept across restarts.
-- **Menu entries.** An app that names a Desktop menu (File, Edit, View, Select, Layout, Apps, Tools or Help) gets an entry at the place it asks for. An entry is greyed out, with the reason in its tooltip, when the app can't run: it needs a selection, its service is unreachable, or it uses something Desktop doesn't support yet.
+- **Menu entries.** An app that names a Desktop menu (File, Edit, View, Select, Layout, Apps, Tools or Help) gets an entry at the place it asks for. An entry is greyed out while the network or selection it needs is missing, and, with the reason in its tooltip, when its service is unreachable or it uses something Desktop doesn't support yet.
 - **Generated input dialogs.** Each app's dialog is built from its metadata: text, drop-down, radio, checkbox and column-picker fields, with the app's own validation, and with the values used last time remembered.
-- **The Service Apps manager.** **Tools > Service Apps > Manage Service Apps…** lists every installed app with its live status, and runs or uninstalls it.
+- **The Service Apps menu.** **Apps > Service Apps > Manage** lists every installed app with its live status, and runs or uninstalls it. **Apps > Service Apps > Install** opens the App Store's list of service apps in your web browser.
 - **Results applied to your networks.** Selection, layouts, table columns, new networks, an in-place network update, or a web page. Results are applied fail-fast, as in Cytoscape Web, and a failure says whether the service or applying its result failed.
 - **Commands for agents and scripts.** Everything above is available as `serviceapps` commands, from Desktop's Command Line, over CyREST, and through the Cytoscape MCP Desktop app.
 
@@ -27,7 +27,7 @@ All commands are in the `serviceapps` namespace, take named arguments, and retur
 | Command | Does |
 |---|---|
 | `serviceapps list` | The installed service apps: `[{name, version, url, reachable}]` |
-| `serviceapps install name= version= url=` | Installs or upgrades a service app, after checking that its service reports that name and version |
+| `serviceapps install url= [name=] [version=]` | Installs or upgrades the service app at `url`, under the name and version it reports. `name` and `version` are optional checks that the service must match |
 | `serviceapps uninstall name=` | Uninstalls a service app and removes its menu entry |
 | `serviceapps status name=` | Checks that the app's service answers now |
 | `serviceapps describe name=` | The app's metadata and the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for it |
@@ -37,7 +37,7 @@ All commands are in the `serviceapps` namespace, take named arguments, and retur
 For example, with Cytoscape running and the fixture service app started with `make fixture`:
 
 ```
-curl "http://127.0.0.1:1234/v1/commands/serviceapps/install?name=Hello%20World&version=1.0&url=http://127.0.0.1:8765/hello"
+curl "http://127.0.0.1:1234/v1/commands/serviceapps/install?url=http://127.0.0.1:8765/hello"
 curl "http://127.0.0.1:1234/v1/commands/serviceapps/list"
 ```
 
@@ -67,6 +67,7 @@ Java 17 and Gradle (wrapper included); `make` is the only entry point, and `make
 | `make install-app` | Copies the bundle into `~/CytoscapeConfiguration/3/apps/installed`, where a running Cytoscape picks it up |
 | `make fixture` | Runs the hello-world service app on `http://127.0.0.1:8765` (`PORT=n` to change) |
 | `make release VERSION=x.y.z` | Builds a release jar stamped with that version |
+| `make clean` | Removes the build output |
 
 ### Tests
 
@@ -85,7 +86,7 @@ The two test targets don't overlap: a test class named `*IT` needs Desktop and r
   make integration-test CYTOSCAPE_INSTALLER_URL=<url of Cytoscape_x_y_z_unix.sh> CYTOSCAPE_INSTALLER_SHA256=<sha256>
   ```
 
-  The default is the Cytoscape 3.10.5 installer in `build.gradle`; CI sets both values in `.github/workflows/ci.yml`.
+  The default is the Cytoscape 3.10.5 release candidate (rc2) installer in `build.gradle`; CI sets both values in `.github/workflows/ci.yml`.
 
 ### The hello-world service app fixture
 
@@ -95,6 +96,7 @@ The two test targets don't overlap: a test class named `*IT` needs Desktop and r
 - `param-*`: every parameter type and attribute variant;
 - `input-*`: input columns and input definitions;
 - `menu-*`: menu placement cases;
+- `description-*`: an app that asks for its description in the dialog, and one that doesn't;
 - `unsupported-*`: the spec's experimental parameter types and the `edgelist` format;
 - `result-*`: one per result action, plus multi-action, unknown and undeclared actions, and results that fail while being applied;
 - `failure-*`: slow, failed, never finishing, and a refused submission.

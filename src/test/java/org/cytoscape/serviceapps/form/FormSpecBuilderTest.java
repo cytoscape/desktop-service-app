@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Test spec A (headless): every parameter type and attribute variant in the fixture catalogue
- * becomes the control #44 specifies.
+ * Every parameter type and attribute variant in the fixture catalogue becomes the right dialog
+ * control, without a display.
  */
 class FormSpecBuilderTest {
 

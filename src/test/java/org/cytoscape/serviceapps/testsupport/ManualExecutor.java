@@ -3,6 +3,7 @@ package org.cytoscape.serviceapps.testsupport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /** An executor that holds tasks until the test runs them, so background work is deterministic. */
@@ -14,7 +15,7 @@ public class ManualExecutor extends AbstractExecutorService {
     @Override
     public synchronized void execute(Runnable command) {
         if (shutdown) {
-            throw new java.util.concurrent.RejectedExecutionException("shut down");
+            throw new RejectedExecutionException("shut down");
         }
         queued.add(command);
     }

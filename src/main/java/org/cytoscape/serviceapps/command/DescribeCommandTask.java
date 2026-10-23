@@ -66,14 +66,7 @@ public class DescribeCommandTask extends JsonResultTask {
     @Override
     public void run(TaskMonitor monitor) {
         String target = required(name, "name");
-        if (registry.get(target).isEmpty()) {
-            throw new IllegalArgumentException(
-                    "no service app named '" + target + "' is installed");
-        }
-        ServiceMetadata meta =
-                registry.getMeta(target)
-                        .orElseThrow(
-                                () -> new IllegalStateException(target + " has no metadata yet"));
+        ServiceMetadata meta = registry.requireMeta(target);
         monitor.setTitle("Describe service app " + target);
 
         JsonObject json = new JsonObject();

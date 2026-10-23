@@ -1,7 +1,6 @@
 package org.cytoscape.serviceapps.desktop;
 
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -9,6 +8,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
+
+import static org.cytoscape.serviceapps.testsupport.Waits.freePort;
+import static org.cytoscape.serviceapps.testsupport.Waits.sleep;
 
 /**
  * Cytoscape Desktop running in a Docker container, controlled through the {@code docker} CLI.
@@ -31,12 +34,14 @@ public final class DesktopContainer implements AutoCloseable {
             "desktop-service-app-it-" + UUID.randomUUID().toString().substring(0, 8);
     private final String image;
     private final Path jar;
+    private String installedJar;
     private final int port;
     private final CyRest cyrest;
 
     private DesktopContainer(String image, Path jar, int port) {
         this.image = image;
         this.jar = jar;
+        this.installedJar = jar.getFileName().toString();
         this.port = port;
         this.cyrest = new CyRest("http://127.0.0.1:" + port);
     }
@@ -75,6 +80,22 @@ public final class DesktopContainer implements AutoCloseable {
         docker("restart", name);
         awaitCyRest();
         awaitApp();
+    }
+
+    /** The app jar under test. */
+    public Path appJar() {
+        return jar;
+    }
+
+    /**
+     * Replaces the installed app jar with {@code newJar}, as an upgrade or downgrade of the app
+     * does, and restarts Cytoscape so only the new jar is loaded.
+     */
+    public void replaceApp(Path newJar) {
+        docker("exec", name, "rm", "-f", APPS_DIR + installedJar);
+        docker("cp", newJar.toString(), name + ":" + APPS_DIR);
+        installedJar = newJar.getFileName().toString();
+        restart();
     }
 
     /** Cytoscape's console output and framework log, for assertions and failure reports. */
@@ -150,7 +171,7 @@ public final class DesktopContainer implements AutoCloseable {
         await(APP_TIMEOUT, "the serviceapps commands to be available", cyrest::hasServiceApps);
     }
 
-    private void await(Duration timeout, String what, java.util.function.BooleanSupplier ready) {
+    private void await(Duration timeout, String what, BooleanSupplier ready) {
         Instant deadline = Instant.now().plus(timeout);
         while (Instant.now().isBefore(deadline)) {
             if (ready.getAsBoolean()) {
@@ -196,22 +217,5 @@ public final class DesktopContainer implements AutoCloseable {
                             + " is not set; run these tests with make integration-test");
         }
         return value;
-    }
-
-    private static int freePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new IllegalStateException("no free port", e);
-        }
-    }
-
-    private static void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted", e);
-        }
     }
 }

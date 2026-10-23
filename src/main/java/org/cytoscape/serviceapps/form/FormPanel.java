@@ -1,7 +1,7 @@
 package org.cytoscape.serviceapps.form;
 
-import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -27,6 +27,8 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+
+import org.cytoscape.serviceapps.ui.DesktopColors;
 
 /**
  * Draws a {@link FormSpec} as Swing controls and reads the entered values back.
@@ -142,7 +144,7 @@ public class FormPanel extends JPanel {
         add(component, constraints(1, row, 1, 1, new Insets(2, 0, 2, 0)));
         JLabel error = new JLabel();
         error.setName("error:" + control.key());
-        error.setForeground(new Color(0xB0, 0x20, 0x20));
+        error.setForeground(DesktopColors.error());
         errorLabels.put(control.key(), error);
         add(error, constraints(1, row + 1, 1, 1, new Insets(0, 0, 4, 0)));
         return row + 2;
@@ -285,12 +287,12 @@ public class FormPanel extends JPanel {
         return find(this, name);
     }
 
-    private static Component find(java.awt.Container container, String name) {
+    private static Component find(Container container, String name) {
         for (Component child : container.getComponents()) {
             if (name.equals(child.getName())) {
                 return child;
             }
-            if (child instanceof java.awt.Container nested) {
+            if (child instanceof Container nested) {
                 Component found = find(nested, name);
                 if (found != null) {
                     return found;

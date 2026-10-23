@@ -2,6 +2,8 @@ package org.cytoscape.serviceapps.manager;
 
 import java.awt.Component;
 
+import javax.swing.JOptionPane;
+
 /** Asks the user to confirm something. Injected so the dialog can be tested without a person. */
 @FunctionalInterface
 public interface Confirmer {
@@ -11,11 +13,11 @@ public interface Confirmer {
     /** An OK/Cancel option pane. */
     Confirmer OPTION_PANE =
             (parent, title, question) ->
-                    javax.swing.JOptionPane.showConfirmDialog(
+                    JOptionPane.showConfirmDialog(
                                     parent,
                                     question,
                                     title,
-                                    javax.swing.JOptionPane.OK_CANCEL_OPTION,
-                                    javax.swing.JOptionPane.QUESTION_MESSAGE)
-                            == javax.swing.JOptionPane.OK_OPTION;
+                                    JOptionPane.OK_CANCEL_OPTION,
+                                    JOptionPane.QUESTION_MESSAGE)
+                            == JOptionPane.OK_OPTION;
 }

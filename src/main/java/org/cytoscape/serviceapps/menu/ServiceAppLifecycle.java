@@ -15,8 +15,6 @@ import java.util.concurrent.RejectedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.JsonObject;
-
 import org.cytoscape.service.util.CyServiceRegistrar;
 import org.cytoscape.serviceapps.app.RunPrecondition;
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
@@ -52,15 +50,16 @@ import static org.cytoscape.work.ServiceProperties.TOOLTIP;
  *   <li>When CX Support appears or goes away, re-checks every entry.
  * </ul>
  *
- * Every change is logged at INFO, so the wiring can be checked from Desktop's log.
+ * Every menu entry change is logged, so the wiring can be checked from Desktop's log.
  */
 public class ServiceAppLifecycle implements RegistryListener {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ServiceAppLifecycle.class);
 
-    private record Entry(ServiceAppMenuTaskFactory factory, Properties properties, String key) {}
+    private record Entry(ServiceAppMenuTaskFactory factory, MenuPlacement placement, String key) {}
 
     private final CyServiceRegistrar registrar;
+    private final EmptySubmenus submenus;
     private final ServiceAppRegistry registry;
     private final ServiceAppLauncher launcher;
     private final Cx2Support cx2;
@@ -79,8 +78,10 @@ public class ServiceAppLifecycle implements RegistryListener {
             Cx2Support cx2,
             ServiceAppClientFactory clients,
             ActiveRuns active,
-            ExecutorService refresher) {
+            ExecutorService refresher,
+            EmptySubmenus submenus) {
         this.registrar = registrar;
+        this.submenus = submenus;
         this.registry = registry;
         this.launcher = launcher;
         this.cx2 = cx2;
@@ -159,11 +160,8 @@ public class ServiceAppLifecycle implements RegistryListener {
             return;
         }
         boolean upgraded = !Objects.equals(app.version(), meta.version);
+        // A new version also forgets the dialog values remembered for the old one.
         registry.updateMeta(app.name(), meta.version, meta);
-        if (upgraded) {
-            // Values remembered for the old version may not fit the new parameters.
-            registry.saveLastValues(app.name(), new JsonObject());
-        }
         LOGGER.info(
                 "Refreshed metadata for '{}' (reachable, version {}{})",
                 app.name(),
@@ -180,6 +178,10 @@ public class ServiceAppLifecycle implements RegistryListener {
         }
     }
 
+    /**
+     * Synchronized so the entry map and the registered services stay in step. Registering under the
+     * lock is safe: Desktop's menu populator hands the change to the EDT without waiting.
+     */
     private synchronized void sync(String name) {
         if (stopped) {
             return;
@@ -212,7 +214,7 @@ public class ServiceAppLifecycle implements RegistryListener {
         ServiceAppMenuTaskFactory factory =
                 new ServiceAppMenuTaskFactory(name, disabled.isEmpty(), launcher);
         registrar.registerService(factory, TaskFactory.class, properties);
-        entries.put(name, new Entry(factory, properties, key));
+        entries.put(name, new Entry(factory, placement.get(), key));
         LOGGER.info(
                 "Menu entry registered: {} for '{}' ({})",
                 placement.get().describe(),
@@ -266,16 +268,12 @@ public class ServiceAppLifecycle implements RegistryListener {
             return false;
         }
         registrar.unregisterService(entry.factory(), TaskFactory.class);
+        // Desktop leaves the entry's emptied submenus behind.
+        submenus.purge(name, entry.placement());
         return true;
     }
 
-    /** The entries registered now, by app name, for tests. */
-    synchronized Map<String, Properties> registered() {
-        Map<String, Properties> copy = new HashMap<>();
-        entries.forEach((name, entry) -> copy.put(name, entry.properties()));
-        return copy;
-    }
-
+    /** Apps that get no menu entry, for tests. */
     synchronized List<String> withoutEntry() {
         return new ArrayList<>(noEntry.keySet());
     }

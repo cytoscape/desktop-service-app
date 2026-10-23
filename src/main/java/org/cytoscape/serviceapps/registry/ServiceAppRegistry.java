@@ -1,5 +1,6 @@
 package org.cytoscape.serviceapps.registry;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -35,6 +37,33 @@ public class ServiceAppRegistry {
     private final RegistryStore store;
     private final Map<String, RegistryStore.Entry> apps;
     private final List<RegistryListener> listeners = new CopyOnWriteArrayList<>();
+
+    /**
+     * The registry's directory, the same for every version of the Desktop Service App.
+     *
+     * <p>Desktop's folder for an app's data has the app's version in its name ({@code
+     * app-data/org.cytoscape.serviceapps-0.1.0}), so data kept there is left behind by an upgrade.
+     * The registry is kept beside it instead, in a folder named by the bundle alone ({@code
+     * app-data/org.cytoscape.serviceapps}). Desktop always adds a version to its own folders, so
+     * this one is never Desktop's.
+     *
+     * @param versionedAppDirectory Desktop's folder for this version of the app, from {@code
+     *     CyApplicationConfiguration.getAppConfigurationDirectoryLocation}
+     * @param bundleName the app's bundle symbolic name
+     */
+    public static Path directoryFor(File versionedAppDirectory, String bundleName) {
+        if (versionedAppDirectory == null || versionedAppDirectory.getParentFile() == null) {
+            throw new IllegalStateException(
+                    "Cytoscape gave no app data folder for "
+                            + bundleName
+                            + ": "
+                            + versionedAppDirectory);
+        }
+        if (bundleName == null || bundleName.isBlank()) {
+            throw new IllegalStateException("the app's bundle has no symbolic name");
+        }
+        return versionedAppDirectory.getParentFile().toPath().resolve(bundleName);
+    }
 
     /** A registry stored in {@code service-apps.json} inside {@code directory}. */
     public static ServiceAppRegistry inDirectory(Path directory) {
@@ -73,8 +102,8 @@ public class ServiceAppRegistry {
     }
 
     /**
-     * Installs an app, or replaces it if an app with this name is installed (an upgrade). The
-     * remembered dialog values are kept on replace.
+     * Installs an app, or replaces it if an app with this name is installed. The remembered dialog
+     * values are kept for the same version and forgotten for another, as in {@link #updateMeta}.
      */
     public void install(String name, String version, String url, ServiceMetadata meta) {
         requireName(name);
@@ -90,7 +119,7 @@ public class ServiceAppRegistry {
             entry.installedAt = now;
             entry.lastRefreshedAt = now;
             entry.reachable = true;
-            entry.lastValues = existing == null ? new JsonObject() : existing.lastValues;
+            entry.lastValues = existing == null ? new JsonObject() : valuesFor(existing, version);
             apps.put(name, entry);
             persistOrRestore(name, existing);
             event =
@@ -120,7 +149,8 @@ public class ServiceAppRegistry {
 
     /**
      * Records freshly fetched metadata. The registry follows the live {@code version}, so a
-     * same-endpoint upgrade is picked up. Marks the app reachable.
+     * same-endpoint upgrade is picked up. Marks the app reachable. A different version forgets the
+     * remembered dialog values, which may not fit its parameters.
      *
      * @return false if no app with this name is installed
      */
@@ -131,6 +161,7 @@ public class ServiceAppRegistry {
                 return false;
             }
             RegistryStore.Entry before = entry.copy();
+            entry.lastValues = valuesFor(entry, version);
             entry.version = version;
             entry.metadata = copy(meta);
             entry.lastRefreshedAt = System.currentTimeMillis();
@@ -182,6 +213,35 @@ public class ServiceAppRegistry {
         }
         fire(new RegistryEvent(RegistryEvent.Type.UPDATED, name));
         return true;
+    }
+
+    /** The values to keep when {@code entry} becomes {@code version}. */
+    private static JsonObject valuesFor(RegistryStore.Entry entry, String version) {
+        return Objects.equals(entry.version, version) ? entry.lastValues : new JsonObject();
+    }
+
+    /**
+     * The installed app.
+     *
+     * @throws IllegalArgumentException naming the app when none of that name is installed
+     */
+    public InstalledServiceApp require(String name) {
+        return get(name)
+                .orElseThrow(
+                        () ->
+                                new IllegalArgumentException(
+                                        "no service app named '" + name + "' is installed"));
+    }
+
+    /**
+     * The installed app's metadata.
+     *
+     * @throws IllegalArgumentException naming the app when none of that name is installed
+     */
+    public ServiceMetadata requireMeta(String name) {
+        require(name);
+        return getMeta(name)
+                .orElseThrow(() -> new IllegalStateException(name + " has no metadata yet"));
     }
 
     public void addListener(RegistryListener listener) {

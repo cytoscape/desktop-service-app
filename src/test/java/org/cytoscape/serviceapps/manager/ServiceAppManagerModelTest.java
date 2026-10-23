@@ -13,10 +13,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import org.cytoscape.service.util.CyServiceRegistrar;
+import org.cytoscape.serviceapps.client.ServiceAppStatusChecker;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerModel.Row;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerModel.Status;
+import org.cytoscape.serviceapps.menu.EmptySubmenus;
 import org.cytoscape.serviceapps.menu.ServiceAppLifecycle;
 import org.cytoscape.serviceapps.request.ServiceInput;
 import org.cytoscape.serviceapps.run.RecordingTaskMonitor;
@@ -25,13 +27,16 @@ import org.cytoscape.serviceapps.run.ServiceAppRun;
 import org.cytoscape.serviceapps.testsupport.ManualExecutor;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 
+import static org.cytoscape.serviceapps.testsupport.Waits.until;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /** The manager without Swing: rows, live status, Invoke, Uninstall, live updates, close. */
 @ExtendWith(FixtureServerExtension.class)
@@ -101,6 +106,23 @@ class ServiceAppManagerModelTest {
     }
 
     @Test
+    void aCheckThatThrowsShowsTheAppOfflineInsteadOfCheckingForever() {
+        String name = f.install("hello");
+        ServiceAppStatusChecker broken = mock(ServiceAppStatusChecker.class);
+        when(broken.check(anyString())).thenThrow(new IllegalArgumentException("bad URL"));
+        ServiceAppManagerModel model =
+                new ServiceAppManagerModel(f.registry, f.launcher, broken, f.checks);
+        model.open();
+
+        f.checks.runAll();
+
+        Row row = model.rows().get(0);
+        assertEquals(Status.OFFLINE, row.status());
+        assertEquals("The status check failed: bad URL", row.statusDetail());
+        verify(f.registry).setReachable(name, false);
+    }
+
+    @Test
     void anUnsupportedAppCantBeInvokedAndSaysWhy() {
         String name = f.install("unsupported-file");
         model.open();
@@ -130,8 +152,7 @@ class ServiceAppManagerModelTest {
         model.uninstall(gone);
 
         verify(f.registry).uninstall(gone);
-        assertNull(row(gone));
-        assertTrue(row(keep) != null);
+        assertEquals(List.of(keep), model.rows().stream().map(Row::name).toList());
     }
 
     @Test
@@ -191,7 +212,8 @@ class ServiceAppManagerModelTest {
                         f.cx2,
                         f.clients,
                         f.active,
-                        new ManualExecutor());
+                        new ManualExecutor(),
+                        EmptySubmenus.NONE);
         lifecycle.start();
         ServiceAppRun run =
                 f.runs.create(
@@ -202,7 +224,7 @@ class ServiceAppManagerModelTest {
                         RunListener.NONE);
         CompletableFuture<Void> running =
                 CompletableFuture.runAsync(() -> run.run(new RecordingTaskMonitor()));
-        waitFor(() -> f.active.count(name) == 1 && !f.fixture.liveTaskIds().isEmpty());
+        until(() -> f.active.count(name) == 1 && !f.fixture.liveTaskIds().isEmpty());
         model.open();
 
         model.uninstall(name);
@@ -211,16 +233,5 @@ class ServiceAppManagerModelTest {
         assertTrue(run.isCancelled());
         assertTrue(f.fixture.requests().stream().anyMatch(r -> r.method().equals("DELETE")));
         assertTrue(f.fixture.liveTaskIds().isEmpty());
-    }
-
-    private static void waitFor(java.util.function.BooleanSupplier condition)
-            throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        while (!condition.getAsBoolean()) {
-            if (System.nanoTime() > deadline) {
-                throw new AssertionError("condition not met in 10 s");
-            }
-            Thread.sleep(10);
-        }
     }
 }

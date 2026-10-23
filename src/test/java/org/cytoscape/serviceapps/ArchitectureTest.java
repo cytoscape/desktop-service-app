@@ -8,8 +8,8 @@ import com.tngtech.archunit.lang.ArchRule;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * The registry is the only way to installed-app data, and the form layer stays pure: the rules the
- * #44 design relies on, checked on the compiled classes.
+ * The registry is the only way to installed-app data, and the form layer stays pure: checked on the
+ * compiled classes.
  */
 @AnalyzeClasses(
         packages = "org.cytoscape.serviceapps",

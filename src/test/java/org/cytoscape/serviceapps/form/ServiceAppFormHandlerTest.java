@@ -5,6 +5,7 @@ import java.awt.GraphicsEnvironment;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -13,6 +14,7 @@ import javax.swing.JList;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -34,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
- * Test spec A (Swing): the registered handler draws each control from the form spec and writes the
- * entered values back. Needs a display; CI runs it under xvfb.
+ * The registered handler draws each control from the form spec and writes the entered values back.
+ * Needs a display; CI runs it under xvfb.
  */
 class ServiceAppFormHandlerTest {
 
@@ -68,7 +70,7 @@ class ServiceAppFormHandlerTest {
         return (ServiceAppFormHandler) created;
     }
 
-    private static <T> T onEdt(java.util.concurrent.Callable<T> work) throws Exception {
+    private static <T> T onEdt(Callable<T> work) throws Exception {
         List<T> result = new ArrayList<>(1);
         List<Exception> failure = new ArrayList<>(1);
         SwingUtilities.invokeAndWait(
@@ -177,9 +179,7 @@ class ServiceAppFormHandlerTest {
         assertEquals("name", gene.getSelectedItem());
         JScrollPane scroll = (JScrollPane) panel.find("column:Scores:scroll");
         JList<?> scores = (JList<?>) scroll.getViewport().getView();
-        assertEquals(
-                javax.swing.ListSelectionModel.MULTIPLE_INTERVAL_SELECTION,
-                scores.getSelectionMode());
+        assertEquals(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION, scores.getSelectionMode());
         assertNull(panel.find("column:shared name"));
     }
 

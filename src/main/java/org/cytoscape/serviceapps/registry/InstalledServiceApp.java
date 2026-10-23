@@ -17,4 +17,10 @@ public record InstalledServiceApp(
         String url,
         Instant installedAt,
         Instant lastRefreshedAt,
-        boolean reachable) {}
+        boolean reachable) {
+
+    /** This snapshot with {@code reachable} replaced. */
+    public InstalledServiceApp withReachable(boolean reachable) {
+        return new InstalledServiceApp(name, version, url, installedAt, lastRefreshedAt, reachable);
+    }
+}

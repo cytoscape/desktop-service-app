@@ -11,9 +11,11 @@ import com.google.gson.JsonParser;
 
 import org.cytoscape.application.CyApplicationManager;
 import org.cytoscape.model.CyEdge;
+import org.cytoscape.model.CyIdentifiable;
 import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNetworkManager;
 import org.cytoscape.model.CyNode;
+import org.cytoscape.model.CyRow;
 import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
 import org.cytoscape.serviceapps.model.ResultAction;
 import org.cytoscape.serviceapps.request.SentIds;
@@ -78,7 +80,7 @@ class RenderHandlersTest {
                 mock(TaskMonitor.class));
     }
 
-    private boolean selected(org.cytoscape.model.CyIdentifiable element) {
+    private boolean selected(CyIdentifiable element) {
         return Boolean.TRUE.equals(
                 target.network.getRow(element).get(CyNetwork.SELECTED, Boolean.class));
     }
@@ -251,7 +253,10 @@ class RenderHandlersTest {
     void updateTablesWithAnUnknownTypeFails() {
         JsonElement data =
                 JsonParser.parseString(
-                        "{\"id\":\"node\",\"columns\":[{\"id\":\"shape\",\"type\":\"complex\"}],\"rows\":{}}");
+                        "{\"id\":\"node\",\"columns\":[{\"id\":\"rank\",\"type\":\"long\"},"
+                                + "{\"id\":\"shape\",\"type\":\"complex\"}],"
+                                + "\"rows\":{\"0\":{\"rank\":1}}}");
+        var before = target.snapshot();
 
         RenderException e =
                 assertThrows(
@@ -261,7 +266,37 @@ class RenderHandlersTest {
                                         List.of(new ResultAction(ResultAction.UPDATE_TABLES, data)),
                                         SentIds.NONE));
 
-        assertTrue(e.getMessage().contains("'shape' has unknown type 'complex'"), e.getMessage());
+        assertEquals(
+                "Rendering failed at updateTables (1 of 1): updateTables column 'shape' has unknown"
+                        + " type 'complex'. Nothing was applied.",
+                e.getMessage());
+        assertEquals(before, target.snapshot(), "not even the valid column is created");
+        assertNull(target.network.getDefaultNodeTable().getColumn("rank"));
+    }
+
+    @Test
+    void aFailureAfterASkippedActionSaysNothingWasApplied() {
+        JsonElement otherTable = JsonParser.parseString("{\"id\":\"network\",\"rows\":{}}");
+        ResultAction skipped =
+                new ResultAction(
+                        ResultAction.ADD_TABLES,
+                        ScenarioCatalog.exampleAction(ResultAction.ADD_TABLES).get("data"));
+
+        RenderException e =
+                assertThrows(
+                        RenderException.class,
+                        () ->
+                                render(
+                                        List.of(
+                                                skipped,
+                                                new ResultAction(
+                                                        ResultAction.UPDATE_TABLES, otherTable)),
+                                        SentIds.NONE));
+
+        assertEquals(
+                "Rendering failed at updateTables (2 of 2): updateTables can only update the node or"
+                        + " edge table, not 'network'. Nothing was applied.",
+                e.getMessage());
     }
 
     @Test
@@ -470,7 +505,7 @@ class RenderHandlersTest {
     }
 
     @Test
-    void updateNetworkRejectsHcxNetworks() {
+    void updateNetworkSkipsHcxNetworksWithANote() {
         target.network.getDefaultNetworkTable().createColumn("ndexSchema", String.class, false);
         target.network.getRow(target.network).set("ndexSchema", "hierarchy_v0.1");
 
@@ -507,11 +542,36 @@ class RenderHandlersTest {
     }
 
     @Test
+    void updateNetworkFillsDeclaredDefaultsAndResolvesAliases() {
+        JsonElement data =
+                JsonParser.parseString(
+                        "[{\"CXVersion\":\"2.0\"},{\"attributeDeclarations\":[{\"nodes\":{"
+                                + "\"score\":{\"d\":\"double\",\"v\":0.5},"
+                                + "\"cluster label\":{\"d\":\"string\",\"a\":\"cl\"},"
+                                + "\"unset\":{\"d\":\"integer\"}}}]},"
+                                + "{\"nodes\":[{\"id\":0,\"v\":{\"score\":2.0,\"cl\":\"A\"}},"
+                                + "{\"id\":1}]}]");
+
+        render(List.of(new ResultAction(ResultAction.UPDATE_NETWORK, data)), SentIds.NONE);
+
+        CyRow n0 = target.network.getRow(target.node(0));
+        CyRow n1 = target.network.getRow(target.node(1));
+        assertEquals(2.0, n0.get("score", Double.class), "a given value wins");
+        assertEquals(0.5, n1.get("score", Double.class), "an omitted value takes the default");
+        assertEquals("A", n0.get("cluster label", String.class), "the alias names the column");
+        assertNull(target.network.getDefaultNodeTable().getColumn("cl"));
+        assertNull(n1.get("cluster label", String.class), "no default declared: left empty");
+        assertNull(target.network.getDefaultNodeTable().getColumn("unset"));
+    }
+
+    @Test
     void updateNetworkWithAnUnknownDeclaredTypeFails() {
         JsonElement data =
                 JsonParser.parseString(
                         "[{\"CXVersion\":\"2.0\"},{\"attributeDeclarations\":[{\"nodes\":{\"shape\":{\"d\":\"complex\"}}}]},"
                                 + "{\"nodes\":[{\"id\":0}]}]");
+
+        var before = target.snapshot();
 
         RenderException e =
                 assertThrows(
@@ -523,7 +583,11 @@ class RenderHandlersTest {
                                                         ResultAction.UPDATE_NETWORK, data)),
                                         SentIds.NONE));
 
-        assertTrue(e.getMessage().contains("'shape' with unknown type 'complex'"), e.getMessage());
+        assertEquals(
+                "Rendering failed at updateNetwork (1 of 1): updateNetwork data declares attribute"
+                        + " 'shape' with unknown type 'complex'. Nothing was applied.",
+                e.getMessage());
+        assertEquals(before, target.snapshot());
     }
 
     @Test

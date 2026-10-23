@@ -110,18 +110,8 @@ public class TaskCallCommandTask extends JsonResultTask {
     @Override
     public void run(TaskMonitor monitor) {
         String name = required(app, "app");
-        InstalledServiceApp installed =
-                registry.get(name)
-                        .orElseThrow(
-                                () ->
-                                        new IllegalArgumentException(
-                                                "no service app named '"
-                                                        + name
-                                                        + "' is installed"));
-        ServiceMetadata meta =
-                registry.getMeta(name)
-                        .orElseThrow(
-                                () -> new IllegalStateException(name + " has no metadata yet"));
+        InstalledServiceApp installed = registry.require(name);
+        ServiceMetadata meta = registry.requireMeta(name);
         monitor.setTitle("Start service app " + name);
 
         UiTarget target = targets.resolve(uiInput);
@@ -138,14 +128,7 @@ public class TaskCallCommandTask extends JsonResultTask {
                             + " network active.");
         }
         // Reachability is left to the run: the saved flag may be stale.
-        InstalledServiceApp assumeReachable =
-                new InstalledServiceApp(
-                        installed.name(),
-                        installed.version(),
-                        installed.url(),
-                        installed.installedAt(),
-                        installed.lastRefreshedAt(),
-                        true);
+        InstalledServiceApp assumeReachable = installed.withReachable(true);
         RunPrecondition.check(assumeReachable, meta, target.network(), cx2.available())
                 .ifPresent(
                         reason -> {

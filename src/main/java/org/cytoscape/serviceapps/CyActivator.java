@@ -1,13 +1,11 @@
 package org.cytoscape.serviceapps;
 
-import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.osgi.framework.BundleContext;
@@ -44,15 +42,19 @@ import org.cytoscape.serviceapps.form.FormSpecBuilder;
 import org.cytoscape.serviceapps.form.ServiceAppFormHandlerFactory;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
 import org.cytoscape.serviceapps.launch.SwingUserMessages;
+import org.cytoscape.serviceapps.manager.AppStoreLink;
 import org.cytoscape.serviceapps.manager.Confirmer;
+import org.cytoscape.serviceapps.manager.InstallServiceAppsAction;
 import org.cytoscape.serviceapps.manager.ManageServiceAppsAction;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerDialog;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerModel;
+import org.cytoscape.serviceapps.menu.EmptySubmenus;
 import org.cytoscape.serviceapps.menu.ServiceAppLifecycle;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.render.RenderServiceAppUI;
 import org.cytoscape.serviceapps.request.RequestBuilder;
 import org.cytoscape.serviceapps.run.ActiveRuns;
+import org.cytoscape.serviceapps.run.DaemonThreads;
 import org.cytoscape.serviceapps.run.RunSettings;
 import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
 import org.cytoscape.serviceapps.run.ServiceAppRunRegistry;
@@ -78,8 +80,6 @@ import static org.cytoscape.work.ServiceProperties.IN_MENU_BAR;
  */
 public class CyActivator extends AbstractCyActivator {
 
-    public static final String COMMAND_NAMESPACE_VALUE = Commands.NAMESPACE;
-
     private static final Logger LOGGER = LoggerFactory.getLogger(CyActivator.class);
 
     private ServiceAppLifecycle lifecycle;
@@ -89,8 +89,12 @@ public class CyActivator extends AbstractCyActivator {
     @Override
     public void start(BundleContext bc) {
         CyApplicationConfiguration configuration = getService(bc, CyApplicationConfiguration.class);
-        File directory = configuration.getAppConfigurationDirectoryLocation(CyActivator.class);
-        ServiceAppRegistry registry = ServiceAppRegistry.inDirectory(directory.toPath());
+        ServiceAppRegistry registry =
+                ServiceAppRegistry.inDirectory(
+                        ServiceAppRegistry.directoryFor(
+                                configuration.getAppConfigurationDirectoryLocation(
+                                        CyActivator.class),
+                                bc.getBundle().getSymbolicName()));
 
         ServiceAppsProperties properties = new ServiceAppsProperties();
         Properties cyPropertyProps = new Properties();
@@ -112,7 +116,8 @@ public class CyActivator extends AbstractCyActivator {
      * Menu entries, the input dialog, the run engine, the Service Apps manager and the {@code
      * serviceapps} commands.
      *
-     * <p>Each wiring step logs one INFO line; the Docker integration tests read them.
+     * <p>The form handler and the Service Apps menu each log an INFO line once registered; the
+     * Docker integration tests wait for them.
      */
     private void registerUiAndCommands(
             BundleContext bc,
@@ -141,30 +146,45 @@ public class CyActivator extends AbstractCyActivator {
                 new Properties());
         LOGGER.info("Service app form handler registered");
 
+        OpenBrowser browser = getService(bc, OpenBrowser.class);
+        @SuppressWarnings("unchecked")
+        CyProperty<Properties> cytoscapeProperties =
+                getService(bc, CyProperty.class, "(cyPropertyName=cytoscape3.props)");
+        // Both read when used, so a changed App Store setting applies without a restart.
+        Supplier<AppStoreLink> appStore =
+                () -> AppStoreLink.from(cytoscapeProperties.getProperties());
+        Consumer<String> openUrl = url -> browser.openURL(url, false);
+        FormSpecBuilder forms = new FormSpecBuilder();
         ActiveRuns active = new ActiveRuns();
         ServiceAppRunFactory runs =
                 new ServiceAppRunFactory(
                         registry,
                         clients,
                         new RequestBuilder(cx2),
-                        RenderServiceAppUI.standard(
-                                viewManager, getService(bc, OpenBrowser.class), cx2, applications),
+                        RenderServiceAppUI.standard(viewManager, browser, cx2, applications),
                         () -> RunSettings.from(properties.getProperties()),
                         active);
         ServiceAppLauncher launcher =
                 new ServiceAppLauncher(
                         registry,
-                        new FormSpecBuilder(),
+                        forms,
                         getService(bc, DialogTaskManager.class),
                         applications,
                         runs,
                         cx2,
                         new SwingUserMessages(swing::getJFrame));
 
-        background = Executors.newFixedThreadPool(2, daemonThreads());
+        background = Executors.newFixedThreadPool(2, DaemonThreads.named("service-apps"));
         lifecycle =
                 new ServiceAppLifecycle(
-                        registrar, registry, launcher, cx2, clients, active, background);
+                        registrar,
+                        registry,
+                        launcher,
+                        cx2,
+                        clients,
+                        active,
+                        background,
+                        new EmptySubmenus(swing));
         lifecycle.start();
 
         ServiceAppStatusChecker checker = new ServiceAppStatusChecker(clients);
@@ -175,13 +195,24 @@ public class CyActivator extends AbstractCyActivator {
                                         swing.getJFrame(),
                                         new ServiceAppManagerModel(
                                                 registry, launcher, checker, background),
-                                        Confirmer.OPTION_PANE));
+                                        Confirmer.OPTION_PANE,
+                                        appStore.get(),
+                                        openUrl));
         registerService(bc, manage, CyAction.class, new Properties());
-        LOGGER.info("Manage Service Apps… registered under Tools > Service Apps");
+        registerService(
+                bc,
+                new InstallServiceAppsAction(appStore, openUrl),
+                CyAction.class,
+                new Properties());
+        LOGGER.info(
+                "Service Apps menu registered: {} > {}, {}",
+                ManageServiceAppsAction.MENU.replace(".", " > "),
+                ManageServiceAppsAction.TITLE,
+                InstallServiceAppsAction.TITLE);
 
         runRegistry = new ServiceAppRunRegistry(active);
         UiTargetResolver targets = new UiTargetResolver(networkManager, viewManager, applications);
-        ServiceInputParser inputs = new ServiceInputParser(new FormSpecBuilder());
+        ServiceInputParser inputs = new ServiceInputParser(forms);
         Map<Class<? extends Task>, Supplier<Task>> commands = new LinkedHashMap<>();
         commands.put(ListCommandTask.class, () -> new ListCommandTask(registry));
         commands.put(InstallCommandTask.class, () -> new InstallCommandTask(registry, clients));
@@ -216,15 +247,6 @@ public class CyActivator extends AbstractCyActivator {
         super.shutDown();
     }
 
-    private static ThreadFactory daemonThreads() {
-        AtomicInteger count = new AtomicInteger();
-        return runnable -> {
-            Thread thread = new Thread(runnable, "service-apps-" + count.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        };
-    }
-
     /**
      * Publishes one command to the Command Line, CyREST and automation clients.
      *
@@ -235,7 +257,7 @@ public class CyActivator extends AbstractCyActivator {
     private void registerCommand(BundleContext bc, Commands.Command command, Supplier<Task> tasks) {
         Properties props = new Properties();
         props.setProperty(IN_MENU_BAR, "false");
-        props.setProperty(COMMAND_NAMESPACE, COMMAND_NAMESPACE_VALUE);
+        props.setProperty(COMMAND_NAMESPACE, Commands.NAMESPACE);
         props.setProperty(COMMAND, command.name());
         props.setProperty(COMMAND_DESCRIPTION, command.description());
         props.setProperty(COMMAND_LONG_DESCRIPTION, command.longDescription());

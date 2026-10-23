@@ -6,16 +6,18 @@ import java.util.function.Supplier;
 import org.cytoscape.application.swing.AbstractCyAction;
 
 /**
- * {@code Tools > Service Apps > Manage Service Apps…}: always present, whether or not any service
- * apps are installed. Opens the Service Apps dialog, or brings it to the front if it is open.
+ * {@code Apps > Service Apps > Manage}: always present, whether or not any service apps are
+ * installed. Opens the Service Apps dialog, or brings it to the front if it is open.
  */
 public class ManageServiceAppsAction extends AbstractCyAction {
 
-    public static final String MENU = "Tools.Service Apps";
-    public static final String TITLE = "Manage Service Apps…";
+    public static final String MENU = "Apps.Service Apps";
+    public static final String TITLE = "Manage";
 
     private final Supplier<ServiceAppManagerDialog> dialogs;
-    private ServiceAppManagerDialog open;
+
+    /** The dialog shown last; read and written on the EDT only. */
+    private ServiceAppManagerDialog current;
 
     public ManageServiceAppsAction(Supplier<ServiceAppManagerDialog> dialogs) {
         super(TITLE);
@@ -26,16 +28,16 @@ public class ManageServiceAppsAction extends AbstractCyAction {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        if (open != null && open.isDisplayable()) {
-            open.toFront();
+        if (current != null && current.isDisplayable()) {
+            current.toFront();
             return;
         }
-        open = dialogs.get();
-        open.setVisible(true);
+        current = dialogs.get();
+        current.setVisible(true);
     }
 
     /** The dialog shown last, for tests. */
     ServiceAppManagerDialog dialog() {
-        return open;
+        return current;
     }
 }

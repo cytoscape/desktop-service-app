@@ -67,6 +67,43 @@ class ServiceAppCommandsIT {
         assertTrue(app.get("reachable").getAsBoolean());
     }
 
+    /** Desktop accepts install with only url=; name and version come from the service. */
+    @Test
+    void installWithOnlyAUrl() throws IOException {
+        String url = DesktopExtension.containerUrl(fixture, ScenarioCatalog.HELLO);
+
+        String reply = cyrest.get(NS, "install", Map.of("url", url));
+        CyRest.Reply json = cyrest.post(NS, "install", Map.of("url", url));
+
+        assertTrue(reply.contains("installed Hello World 1.0"), reply);
+        assertTrue(json.ok(), json.toString());
+        assertEquals("Hello World", json.data().getAsJsonObject().get("name").getAsString());
+        assertEquals("1.0", json.data().getAsJsonObject().get("version").getAsString());
+        JsonArray apps = DesktopTestSupport.list(cyrest);
+        assertEquals(1, apps.size());
+        assertEquals("Hello World", apps.get(0).getAsJsonObject().get("name").getAsString());
+    }
+
+    /** A name given is still checked, with or without a version. */
+    @Test
+    void installRefusesANameMismatchWithoutAVersion() throws IOException {
+        CyRest.Reply reply =
+                cyrest.post(
+                        NS,
+                        "install",
+                        Map.of(
+                                "name",
+                                "helloworld",
+                                "url",
+                                DesktopExtension.containerUrl(fixture, ScenarioCatalog.HELLO)));
+
+        assertFalse(reply.ok(), reply.toString());
+        assertTrue(
+                reply.toString().contains("reports name 'Hello World', not 'helloworld'"),
+                reply.toString());
+        assertEquals(0, DesktopTestSupport.list(cyrest).size());
+    }
+
     /**
      * What the App Store page gets from a GET: CyREST wraps each output line in HTML and adds a
      * "Finished" line, so the JSON is the first line once the tags are removed.
@@ -118,6 +155,37 @@ class ServiceAppCommandsIT {
 
         assertFalse(reply.ok(), reply.toString());
         assertTrue(reply.errors().toString().contains("could not reach"), reply.toString());
+    }
+
+    @Test
+    void anUnreachableUrlOnlyInstallNamesTheUrl() throws IOException {
+        String url = "http://" + DesktopContainer.HOST_ALIAS + ":1/hello";
+
+        CyRest.Reply reply = cyrest.post(NS, "install", Map.of("url", url));
+
+        assertFalse(reply.ok(), reply.toString());
+        assertTrue(
+                reply.errors().toString().contains("could not install the service app at " + url),
+                reply.toString());
+    }
+
+    @Test
+    void aUrlOnlyInstallUpgradesToTheVersionTheServiceReports() throws IOException {
+        cyrest.post(NS, "install", installArgs("1.0", ScenarioCatalog.HELLO));
+
+        CyRest.Reply reply =
+                cyrest.post(
+                        NS,
+                        "install",
+                        Map.of(
+                                "url",
+                                DesktopExtension.containerUrl(fixture, ScenarioCatalog.HELLO_V2)));
+
+        assertTrue(reply.ok(), reply.toString());
+        JsonArray apps = DesktopTestSupport.list(cyrest);
+        assertEquals(1, apps.size());
+        assertEquals("Hello World", apps.get(0).getAsJsonObject().get("name").getAsString());
+        assertEquals("2.0", apps.get(0).getAsJsonObject().get("version").getAsString());
     }
 
     @Test
