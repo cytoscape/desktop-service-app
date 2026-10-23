@@ -1,7 +1,6 @@
 package org.cytoscape.serviceapps.desktop;
 
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -9,6 +8,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
+
+import static org.cytoscape.serviceapps.testsupport.Waits.freePort;
+import static org.cytoscape.serviceapps.testsupport.Waits.sleep;
 
 /**
  * Cytoscape Desktop running in a Docker container, controlled through the {@code docker} CLI.
@@ -150,7 +153,7 @@ public final class DesktopContainer implements AutoCloseable {
         await(APP_TIMEOUT, "the serviceapps commands to be available", cyrest::hasServiceApps);
     }
 
-    private void await(Duration timeout, String what, java.util.function.BooleanSupplier ready) {
+    private void await(Duration timeout, String what, BooleanSupplier ready) {
         Instant deadline = Instant.now().plus(timeout);
         while (Instant.now().isBefore(deadline)) {
             if (ready.getAsBoolean()) {
@@ -196,22 +199,5 @@ public final class DesktopContainer implements AutoCloseable {
                             + " is not set; run these tests with make integration-test");
         }
         return value;
-    }
-
-    private static int freePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new IllegalStateException("no free port", e);
-        }
-    }
-
-    private static void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted", e);
-        }
     }
 }

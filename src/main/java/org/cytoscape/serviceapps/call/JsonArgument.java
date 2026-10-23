@@ -24,7 +24,7 @@ final class JsonArgument {
 
     /** Java's {@code Map.toString()} form: braces around {@code key=value} pairs. */
     private static final Pattern MAP_TO_STRING =
-            Pattern.compile("^\\{\\s*[^\"{}:]+=.*}$", Pattern.DOTALL);
+            Pattern.compile("\\{\\s*[^\"{}:]+=.*}", Pattern.DOTALL); // matches() is a full match
 
     private static final TypeAdapter<JsonElement> ELEMENTS =
             new Gson().getAdapter(JsonElement.class);

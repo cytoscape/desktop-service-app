@@ -26,7 +26,7 @@ public final class ContractNetwork {
 
     public final CyNetwork network;
     public final CyNetworkView view;
-    public final IdMapper ids;
+    private final IdMapper ids;
     private final Map<Long, CyNode> nodes = new HashMap<>();
     private final Map<Long, CyEdge> edges = new HashMap<>();
 

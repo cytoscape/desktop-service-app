@@ -2,6 +2,7 @@ package org.cytoscape.serviceapps.menu;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,12 +23,14 @@ import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
+import org.cytoscape.serviceapps.placement.MenuPlacement;
 import org.cytoscape.serviceapps.placement.MenuPlacementResolver;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.run.ActiveRuns;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.ManualExecutor;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
+import org.cytoscape.serviceapps.testsupport.Waits;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.TaskFactory;
 
@@ -41,10 +44,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -68,6 +73,7 @@ class ServiceAppLifecycleTest {
                     null);
     private final ActiveRuns active = mock(ActiveRuns.class);
     private final ManualExecutor refresher = new ManualExecutor();
+    private final EmptySubmenus submenus = mock(EmptySubmenus.class);
     private int registrations;
 
     private ServiceAppRegistry registry;
@@ -98,7 +104,8 @@ class ServiceAppLifecycleTest {
                 cx2,
                 clients,
                 active,
-                refresher);
+                refresher,
+                submenus);
     }
 
     private String install(FixtureServer fixture, String scenario) {
@@ -268,14 +275,16 @@ class ServiceAppLifecycleTest {
     void comingBackOnlineEnablesTheEntryAgain(FixtureServer fixture) {
         String name = install(fixture, "menu-root-apps");
         registry.setReachable(name, false);
+        Instant installed = registry.get(name).orElseThrow().lastRefreshedAt();
         lifecycle.start();
         assertFalse(factory(name).isReady());
+        Waits.sleep(5); // so the refresh gets a later timestamp
 
         refresher.runAll();
 
         assertTrue(registry.get(name).orElseThrow().reachable());
         assertTrue(factory(name).isReady());
-        assertTrue(registry.get(name).orElseThrow().lastRefreshedAt() != null);
+        assertTrue(registry.get(name).orElseThrow().lastRefreshedAt().isAfter(installed));
     }
 
     @Test
@@ -330,6 +339,26 @@ class ServiceAppLifecycleTest {
 
         assertTrue(live.isEmpty());
         verify(active).cancelApp(name);
+        verify(submenus)
+                .purge(
+                        name,
+                        MenuPlacementResolver.resolve(TestNetworks.scenario("menu-root-apps"))
+                                .orElseThrow());
+    }
+
+    @Test
+    void aMovedEntryHasItsOldSubmenusPurged(FixtureServer fixture) {
+        String name = install(fixture, "menu-multi-level");
+        lifecycle.start();
+        MenuPlacement before =
+                MenuPlacementResolver.resolve(registry.getMeta(name).orElseThrow()).orElseThrow();
+        ServiceMetadata moved = registry.getMeta(name).orElseThrow();
+        moved.cyWebMenuItem.root = "Tools";
+        registry.updateMeta(name, moved.version, moved);
+
+        verify(submenus).purge(name, before);
+        assertEquals(1, live.size(), "registered again at the new place");
+        verify(submenus, never()).purge(eq(name), argThat(p -> p.topMenu().equals("Tools")));
     }
 
     @Test

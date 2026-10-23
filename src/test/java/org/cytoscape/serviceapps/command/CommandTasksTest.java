@@ -28,6 +28,7 @@ import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.work.TaskMonitor;
 import org.cytoscape.work.json.JSONResult;
 
+import static org.cytoscape.serviceapps.command.CommandResults.json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -49,11 +50,6 @@ class CommandTasksTest {
     @BeforeEach
     void setUp() {
         registry = ServiceAppRegistry.inDirectory(dir);
-    }
-
-    private static JsonObject json(JsonResultTask task) {
-        return JsonParser.parseString(task.getResults(JSONResult.class).getJSON())
-                .getAsJsonObject();
     }
 
     private static ServiceMetadata meta(String name, String version) {
@@ -213,6 +209,23 @@ class CommandTasksTest {
     }
 
     @Test
+    void aServiceThatReportsNeitherNameNorVersionIsRefusedNamingBoth() {
+        transport.reply(200, "{}");
+        InstallCommandTask task = new InstallCommandTask(registry, clients);
+        task.url = URL;
+
+        IllegalStateException e =
+                assertThrows(IllegalStateException.class, () -> task.run(monitor));
+
+        assertEquals(
+                "the service at "
+                        + URL
+                        + " reports no name and reports no version; nothing was installed",
+                e.getMessage());
+        assertTrue(registry.list().isEmpty());
+    }
+
+    @Test
     void installReportsAnUnreachableService() {
         transport.fail(new ConnectException("Connection refused"));
         InstallCommandTask task = new InstallCommandTask(registry, clients);
@@ -242,7 +255,7 @@ class CommandTasksTest {
     }
 
     @Test
-    void installRequiresAnHttpUrlAndNothingElse() {
+    void installRejectsAMissingBlankOrNonHttpUrlWithoutFetching() {
         InstallCommandTask task = new InstallCommandTask(registry, clients);
         task.name = "Hello World";
         task.version = "1.0";

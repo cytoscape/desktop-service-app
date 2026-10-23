@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.google.gson.JsonObject;
@@ -20,6 +21,7 @@ import org.cytoscape.serviceapps.model.ServiceMetadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ServiceAppRegistryTest {
@@ -67,7 +69,7 @@ class ServiceAppRegistryTest {
     }
 
     @Test
-    void installingTheSameNameReplacesItAndKeepsRememberedValues() {
+    void installingANewVersionReplacesItAndForgetsRememberedValues() {
         ServiceAppRegistry registry = ServiceAppRegistry.inDirectory(dir);
         List<RegistryEvent> events = new ArrayList<>();
         registry.addListener(events::add);
@@ -82,13 +84,46 @@ class ServiceAppRegistryTest {
         InstalledServiceApp app = registry.get("Hello").orElseThrow();
         assertEquals("2.0", app.version());
         assertEquals("https://h.example/v2", app.url());
-        assertEquals("hi", registry.getLastValues("Hello").get("Greeting").getAsString());
+        assertEquals(new JsonObject(), registry.getLastValues("Hello"), "may not fit 2.0");
         assertEquals(
                 List.of(
                         new RegistryEvent(RegistryEvent.Type.ADDED, "Hello"),
                         new RegistryEvent(RegistryEvent.Type.UPDATED, "Hello"),
                         new RegistryEvent(RegistryEvent.Type.UPDATED, "Hello")),
                 events);
+    }
+
+    @Test
+    void reinstallingTheSameVersionKeepsRememberedValues() {
+        ServiceAppRegistry registry = ServiceAppRegistry.inDirectory(dir);
+        registry.install("Hello", "1.0", "https://h.example/a", meta("Hello", "1.0"));
+        JsonObject values = new JsonObject();
+        values.addProperty("Greeting", "hi");
+        registry.saveLastValues("Hello", values);
+
+        registry.install("Hello", "1.0", "https://h.example/b", meta("Hello", "1.0"));
+        registry.updateMeta("Hello", "1.0", meta("Hello", "1.0"));
+
+        assertEquals(values, registry.getLastValues("Hello"));
+        assertEquals("https://h.example/b", registry.get("Hello").orElseThrow().url());
+    }
+
+    @Test
+    void refreshingToANewVersionForgetsRememberedValues() {
+        ServiceAppRegistry registry = ServiceAppRegistry.inDirectory(dir);
+        registry.install("Hello", "1.0", "https://h.example", meta("Hello", "1.0"));
+        JsonObject values = new JsonObject();
+        values.addProperty("Greeting", "hi");
+        registry.saveLastValues("Hello", values);
+
+        registry.updateMeta("Hello", "2.0", meta("Hello", "2.0"));
+
+        assertEquals("2.0", registry.get("Hello").orElseThrow().version());
+        assertEquals(new JsonObject(), registry.getLastValues("Hello"));
+        assertEquals(
+                new JsonObject(),
+                ServiceAppRegistry.inDirectory(dir).getLastValues("Hello"),
+                "persisted");
     }
 
     @Test
@@ -224,6 +259,22 @@ class ServiceAppRegistryTest {
             assertEquals(
                     List.of(RegistryStore.FILE_NAME),
                     files.map(p -> p.getFileName().toString()).toList());
+        }
+    }
+
+    @Test
+    void requireNamesAnAppThatIsNotInstalled() {
+        ServiceAppRegistry registry = ServiceAppRegistry.inDirectory(dir);
+        registry.install("Hello", "1.0", "https://h.example", meta("Hello", "1.0"));
+
+        assertEquals("Hello", registry.require("Hello").name());
+        assertEquals("1.0", registry.requireMeta("Hello").version);
+        for (Executable lookup :
+                List.<Executable>of(
+                        () -> registry.require("Nope"), () -> registry.requireMeta("Nope"))) {
+            assertEquals(
+                    "no service app named 'Nope' is installed",
+                    assertThrows(IllegalArgumentException.class, lookup).getMessage());
         }
     }
 }

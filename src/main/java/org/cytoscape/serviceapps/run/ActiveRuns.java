@@ -19,10 +19,12 @@ public class ActiveRuns {
     }
 
     void finished(ServiceAppRun run) {
-        Set<ServiceAppRun> forApp = runs.get(run.appName());
-        if (forApp != null) {
-            forApp.remove(run);
-        }
+        runs.computeIfPresent(
+                run.appName(),
+                (name, forApp) -> {
+                    forApp.remove(run);
+                    return forApp.isEmpty() ? null : forApp;
+                });
     }
 
     /** Cancels every run of one app. */

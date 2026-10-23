@@ -52,7 +52,7 @@ class ServiceAppTaskCommandsIT {
     }
 
     private CyRest.Reply call(String scenario, Map<String, String> extra) throws IOException {
-        h.installScenario(scenario);
+        h.install(scenario);
         Map<String, String> args = new HashMap<>(extra);
         args.put("app", ScenarioCatalog.get(scenario).appName());
         return cyrest.post("serviceapps", "task call", args);
@@ -76,7 +76,7 @@ class ServiceAppTaskCommandsIT {
     @Test
     void describeReturnsTheSameSchemaAsTheDialogRulesForEveryScenario() throws IOException {
         for (String scenario : ScenarioCatalog.all().keySet().stream().sorted().toList()) {
-            h.installScenario(scenario);
+            h.install(scenario);
             CyRest.Reply reply =
                     cyrest.post(
                             "serviceapps",
@@ -168,7 +168,7 @@ class ServiceAppTaskCommandsIT {
                                         "uiInput",
                                         uiInput(
                                                 "\"networkId\":"
-                                                        + h.otherSuidForTests()
+                                                        + h.otherSuid()
                                                         + ",\"networkViewId\":"
                                                         + view))));
 

@@ -15,7 +15,9 @@ public class ManageServiceAppsAction extends AbstractCyAction {
     public static final String TITLE = "Manage";
 
     private final Supplier<ServiceAppManagerDialog> dialogs;
-    private ServiceAppManagerDialog open;
+
+    /** The dialog shown last; read and written on the EDT only. */
+    private ServiceAppManagerDialog current;
 
     public ManageServiceAppsAction(Supplier<ServiceAppManagerDialog> dialogs) {
         super(TITLE);
@@ -26,16 +28,16 @@ public class ManageServiceAppsAction extends AbstractCyAction {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        if (open != null && open.isDisplayable()) {
-            open.toFront();
+        if (current != null && current.isDisplayable()) {
+            current.toFront();
             return;
         }
-        open = dialogs.get();
-        open.setVisible(true);
+        current = dialogs.get();
+        current.setVisible(true);
     }
 
     /** The dialog shown last, for tests. */
     ServiceAppManagerDialog dialog() {
-        return open;
+        return current;
     }
 }

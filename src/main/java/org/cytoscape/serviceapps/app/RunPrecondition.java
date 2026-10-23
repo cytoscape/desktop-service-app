@@ -46,9 +46,9 @@ public final class RunPrecondition {
     }
 
     /**
-     * Why the app can't run at all right now, briefly, for a greyed-out menu entry or Invoke
-     * checkbox: it is unsupported or its service is unreachable. Empty if it can run when its
-     * network and selection needs are met.
+     * Why the app can't run at all right now, briefly, for a greyed-out menu entry or the manager:
+     * it is unsupported or its service is unreachable. Empty if it can run when its network and
+     * selection needs are met.
      */
     public static Optional<String> unavailable(
             InstalledServiceApp app, ServiceMetadata meta, boolean cx2Available) {

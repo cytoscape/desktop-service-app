@@ -26,6 +26,7 @@ import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.form.FormSpecBuilder;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
+import org.cytoscape.serviceapps.menu.EmptySubmenus;
 import org.cytoscape.serviceapps.menu.ServiceAppLifecycle;
 import org.cytoscape.serviceapps.menu.ServiceAppMenuTaskFactory;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
@@ -49,6 +50,7 @@ import org.cytoscape.view.presentation.property.BasicVisualLexicon;
 import org.cytoscape.work.Task;
 import org.cytoscape.work.TaskFactory;
 import org.cytoscape.work.TaskIterator;
+import org.cytoscape.work.TaskManager;
 import org.cytoscape.work.TunableValidator;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -173,7 +175,7 @@ public class JvmMenuHarness implements ContractHarness {
                 new ServiceAppLauncher(
                         registry,
                         new FormSpecBuilder(),
-                        mock(org.cytoscape.work.TaskManager.class),
+                        mock(TaskManager.class),
                         applications,
                         runs,
                         cx2,
@@ -189,7 +191,14 @@ public class JvmMenuHarness implements ContractHarness {
                 .registerService(any(), eq(TaskFactory.class), any(Properties.class));
         lifecycle =
                 new ServiceAppLifecycle(
-                        registrar, registry, launcher, cx2, clients, active, new ManualExecutor());
+                        registrar,
+                        registry,
+                        launcher,
+                        cx2,
+                        clients,
+                        active,
+                        new ManualExecutor(),
+                        EmptySubmenus.NONE);
         lifecycle.start();
     }
 

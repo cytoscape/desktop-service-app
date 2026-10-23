@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import com.google.gson.JsonElement;
+
 import org.cytoscape.serviceapps.app.AppSupport;
 import org.cytoscape.serviceapps.contract.ContractHarness;
 import org.cytoscape.serviceapps.contract.DockerTaskCallHarness;
@@ -23,13 +25,14 @@ import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.placement.MenuPlacementResolver;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 
+import static org.cytoscape.serviceapps.testsupport.Waits.until;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * The #44 wiring in real Cytoscape. CyREST can't list Desktop's menus, so this reads the app's INFO
- * log lines, whose exact text comes from the same code that builds the menus.
+ * The menu, dialog and manager wiring in real Cytoscape. CyREST can't list Desktop's menus, so this
+ * reads the app's INFO log lines, whose exact text comes from the same code that builds the menus.
  */
 @ExtendWith(DesktopExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -229,6 +232,39 @@ class DesktopUiWiringIT {
 
     @Test
     @Order(7)
+    void uninstallingRemovesEmptiedSubmenusAndKeepsOnesStillInUse(DesktopContainer desktop)
+            throws IOException {
+        // Both lines are written after reading Desktop's live menu bar. Every other fixture app's
+        // entry is at Apps > Fixture > Hello, so Fixture is still in use; Clustering isn't.
+        uninstall(desktop, app("menu-multi-level"));
+        awaitLog(
+                desktop,
+                "Submenus kept for '"
+                        + app("menu-multi-level")
+                        + "', still in use: Apps > Fixture");
+
+        for (JsonElement app : DesktopTestSupport.list(desktop.cyrest())) {
+            uninstall(desktop, app.getAsJsonObject().get("name").getAsString());
+        }
+        until(
+                () ->
+                        sinceLastStart(desktop)
+                                .lines()
+                                .anyMatch(
+                                        line ->
+                                                line.contains("Empty submenus removed for '")
+                                                        && line.endsWith("': Apps > Fixture")));
+    }
+
+    private static void uninstall(DesktopContainer desktop, String name) throws IOException {
+        CyRest.Reply reply =
+                desktop.cyrest()
+                        .post(DesktopTestSupport.NAMESPACE, "uninstall", Map.of("name", name));
+        assertTrue(reply.ok(), reply.toString());
+    }
+
+    @Test
+    @Order(8)
     void theAppLogsNoErrors(DesktopContainer desktop) {
         List<String> errors =
                 desktop.logs()

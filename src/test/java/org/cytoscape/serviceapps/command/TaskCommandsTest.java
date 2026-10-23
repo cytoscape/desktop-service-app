@@ -39,9 +39,10 @@ import org.cytoscape.util.swing.OpenBrowser;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.view.presentation.property.BasicVisualLexicon;
 import org.cytoscape.work.TaskMonitor;
-import org.cytoscape.work.json.JSONResult;
 
+import static org.cytoscape.serviceapps.command.CommandResults.json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -98,14 +99,7 @@ class TaskCommandsTest {
     }
 
     private String install(String scenario) {
-        ServiceMetadata meta = TestNetworks.scenario(scenario);
-        registry.install(meta.name, meta.version, fixture.url(scenario), meta);
-        return meta.name;
-    }
-
-    private static JsonObject json(JsonResultTask task) {
-        return JsonParser.parseString(task.getResults(JSONResult.class).getJSON())
-                .getAsJsonObject();
+        return TestNetworks.install(registry, fixture, scenario);
     }
 
     private String call(String app, String serviceInput, String uiInput) {
@@ -212,10 +206,14 @@ class TaskCommandsTest {
     @Test
     void theDialogsRememberedValuesAreNotTouched() throws Exception {
         String app = install("result-update-layouts");
+        JsonObject remembered =
+                JsonParser.parseString("{\"parameters\":{\"Greeting\":\"from the dialog\"}}")
+                        .getAsJsonObject();
+        registry.saveLastValues(app, remembered);
 
         finished(call(app, "{\"parameters\":{\"Greeting\":\"hi\"}}", uiInput()));
 
-        assertEquals(new JsonObject(), registry.getLastValues(app));
+        assertEquals(remembered, registry.getLastValues(app));
     }
 
     @Test
@@ -226,6 +224,8 @@ class TaskCommandsTest {
         assertEquals(
                 "Service task failed: Algorithm failed: bad input",
                 status.get("message").getAsString());
+        assertEquals(Set.of("progress", "message", "status", "result"), status.keySet());
+        assertTrue(status.get("result").isJsonNull());
     }
 
     @Test
@@ -356,7 +356,7 @@ class TaskCommandsTest {
                 json.getAsJsonObject("uiInputSchema")
                         .getAsJsonObject("properties")
                         .has("networkViewId"));
-        assertTrue(!json.has("unsupportedReason"));
+        assertFalse(json.has("unsupportedReason"));
     }
 
     @Test
@@ -367,5 +367,18 @@ class TaskCommandsTest {
         task.run(mock(TaskMonitor.class));
 
         assertTrue(json(task).get("unsupportedReason").getAsString().contains("'file'"));
+    }
+
+    @Test
+    void describeRejectsAnUnknownApp() {
+        DescribeCommandTask task = new DescribeCommandTask(registry, cx2);
+        task.name = "Nope";
+
+        assertEquals(
+                "no service app named 'Nope' is installed",
+                assertThrows(
+                                IllegalArgumentException.class,
+                                () -> task.run(mock(TaskMonitor.class)))
+                        .getMessage());
     }
 }

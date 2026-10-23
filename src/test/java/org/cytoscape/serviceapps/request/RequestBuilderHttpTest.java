@@ -20,6 +20,7 @@ import org.cytoscape.serviceapps.model.Json;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
+import org.cytoscape.view.model.CyNetworkViewManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -35,7 +36,7 @@ class RequestBuilderHttpTest {
                 new RequestBuilder(
                         new FakeCx2Support(
                                 TestNetworks.support().getNetworkManager(),
-                                mock(org.cytoscape.view.model.CyNetworkViewManager.class),
+                                mock(CyNetworkViewManager.class),
                                 null));
         BuiltRequest built = builder.build(meta, input, network, null);
         new ServiceAppClient(

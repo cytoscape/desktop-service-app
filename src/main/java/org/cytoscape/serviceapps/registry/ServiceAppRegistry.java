@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -73,8 +74,8 @@ public class ServiceAppRegistry {
     }
 
     /**
-     * Installs an app, or replaces it if an app with this name is installed (an upgrade). The
-     * remembered dialog values are kept on replace.
+     * Installs an app, or replaces it if an app with this name is installed. The remembered dialog
+     * values are kept for the same version and forgotten for another, as in {@link #updateMeta}.
      */
     public void install(String name, String version, String url, ServiceMetadata meta) {
         requireName(name);
@@ -90,7 +91,7 @@ public class ServiceAppRegistry {
             entry.installedAt = now;
             entry.lastRefreshedAt = now;
             entry.reachable = true;
-            entry.lastValues = existing == null ? new JsonObject() : existing.lastValues;
+            entry.lastValues = existing == null ? new JsonObject() : valuesFor(existing, version);
             apps.put(name, entry);
             persistOrRestore(name, existing);
             event =
@@ -120,7 +121,8 @@ public class ServiceAppRegistry {
 
     /**
      * Records freshly fetched metadata. The registry follows the live {@code version}, so a
-     * same-endpoint upgrade is picked up. Marks the app reachable.
+     * same-endpoint upgrade is picked up. Marks the app reachable. A different version forgets the
+     * remembered dialog values, which may not fit its parameters.
      *
      * @return false if no app with this name is installed
      */
@@ -131,6 +133,7 @@ public class ServiceAppRegistry {
                 return false;
             }
             RegistryStore.Entry before = entry.copy();
+            entry.lastValues = valuesFor(entry, version);
             entry.version = version;
             entry.metadata = copy(meta);
             entry.lastRefreshedAt = System.currentTimeMillis();
@@ -182,6 +185,35 @@ public class ServiceAppRegistry {
         }
         fire(new RegistryEvent(RegistryEvent.Type.UPDATED, name));
         return true;
+    }
+
+    /** The values to keep when {@code entry} becomes {@code version}. */
+    private static JsonObject valuesFor(RegistryStore.Entry entry, String version) {
+        return Objects.equals(entry.version, version) ? entry.lastValues : new JsonObject();
+    }
+
+    /**
+     * The installed app.
+     *
+     * @throws IllegalArgumentException naming the app when none of that name is installed
+     */
+    public InstalledServiceApp require(String name) {
+        return get(name)
+                .orElseThrow(
+                        () ->
+                                new IllegalArgumentException(
+                                        "no service app named '" + name + "' is installed"));
+    }
+
+    /**
+     * The installed app's metadata.
+     *
+     * @throws IllegalArgumentException naming the app when none of that name is installed
+     */
+    public ServiceMetadata requireMeta(String name) {
+        require(name);
+        return getMeta(name)
+                .orElseThrow(() -> new IllegalStateException(name + " has no metadata yet"));
     }
 
     public void addListener(RegistryListener listener) {

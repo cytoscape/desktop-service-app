@@ -1,4 +1,4 @@
-# Runs the build's test targets on every push to main and every PR.
+# Runs the build's test targets on every push to main and every PR against main.
 name: Continuous Integration
 
 on:

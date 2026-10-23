@@ -33,21 +33,21 @@ Two situations disable the button:
 - **Cytoscape isn't running, or can't be reached.** The page shows the app's service URL to copy and a link to help with starting Cytoscape. Start Cytoscape and reload the page.
 - **The Desktop Service App isn't installed.** The button is greyed out with an info icon. Its tooltip says "Desktop needs the Service App installed first to enable service app installation" and links to the Desktop Service App's App Store page. Install it, then reload the page.
 
-Installing checks that the service answers and reports the name and version you asked for. A service app is never downloaded: Cytoscape keeps its name, version and web address, and calls the service when you run it.
+Installing checks that the service answers, and installs the app under the name and version the service reports. A service app is never downloaded: Cytoscape keeps its name, version and web address, and calls the service when you run it.
 
 ## Run a service app
 
 A service app can be run in two ways:
 
 - **Its menu entry.** A service app that names a Desktop menu gets an entry there, at the place it asks for, such as **Apps > Clustering > Community Detection**. The menus it can use are File, Edit, View, Select, Layout, Apps, Tools and Help. A service app that names no menu, or a menu Desktop doesn't have, gets no entry; run it from the manager instead.
-- **Invoke** in the [Service Apps manager](#the-service-apps-manager).
+- **A double click on its row** in the [Service Apps manager](#the-service-apps-manager).
 
 Both open the same dialog:
 
 - **Title and details.** The app's name and version are in the title. Its citation, and its description if the app asks for it, are shown at the top.
 - **One field per input**, built from the app's own definition: text boxes, drop-down lists, radio buttons, checkboxes, and column pickers that list only the columns of the right kind and type in your network.
 - **Validation as you type.** A value the app doesn't accept is marked with the app's own help text as you type. Clicking **OK** while a value is invalid shows the problem and keeps the dialog open.
-- **Remembered values.** The dialog starts with the values you used last time with that app. After an upgrade it starts from the app's defaults again.
+- **Remembered values.** The dialog starts with the values you used last time with that app. After an upgrade to a different version, whether installed or found when Cytoscape starts, it starts from the app's defaults again.
 - **A reminder.** Results are applied to your network and can't be undone.
 
 The dialog appears even for an app with no inputs, so you always see what is about to run.
@@ -56,10 +56,13 @@ Click **OK** and the network you were looking at is sent to the service: the who
 
 ### When a menu entry is greyed out
 
-Hover over the entry to see why. The reason is one of these:
+Like Desktop's own menu entries, an entry is greyed out while what it works on is missing:
 
 - **The app needs a selection.** An app that works on selected nodes needs at least one selected node, an app that works on selected edges needs a selected edge, and an app that works on a selected part of a network needs at least one selected node or edge.
 - **No network is open** and the app works on one.
+
+It is also greyed out when the app can't run at all. Then its tooltip ends with "Unavailable:" and the reason:
+
 - **The service can't be reached.** Check your connection, then open the manager, which checks every service again.
 - **Cytoscape Desktop can't run this app.** It uses an input type Desktop doesn't support yet (a file, an access token or an NDEx network ID), asks for its network in a format Desktop doesn't send, or needs the CX Support app.
 
@@ -70,9 +73,10 @@ Hover over the entry to see why. The reason is one of these:
 | Column | Shows |
 |---|---|
 | **Name** | The app's name. Hover to see its version and web address. |
-| **Status** | **Checking…** when the manager opens, then **Online** or **Offline** as each service answers or doesn't. |
-| **Invoke** | Tick to run the app. It opens the same dialog as the menu entry. Greyed out for an app that can't run, with the reason in its tooltip. |
-| **Uninstall** | Tick to remove the app. You are asked "Uninstall <name>? Are you sure?"; **Cancel** leaves everything as it was. |
+| **Status** | **Checking…** when the manager opens, then **Online** (bold green) or **Offline** (bold red) as each service answers or doesn't. |
+
+- **Double-click** an app's row to run it, opening the same dialog as its menu entry. The row turns light blue until the dialog closes. A double click does nothing while the app is **Checking…** or **Offline**, or when Desktop can't run it; hover over the name to see why.
+- **Click** a row to highlight it in light red (the highlight waits a moment, so a double click never flashes red), then click **Uninstall** beside **Close** to remove that app. You are asked "Uninstall <name>? Are you sure?"; **Cancel** leaves everything as it was. **Uninstall** stays greyed out until a row is highlighted, and clicking anywhere else in the manager clears the highlight.
 
 The manager stays open while you work and updates on its own when apps are installed or removed elsewhere, such as from the App Store page. Close it with **Close**, the window's close button, or Escape. With no service apps installed, it says **No Service Apps installed**, with a link that opens the App Store's service apps page in your web browser so you can choose one to install: [apps.cytoscape.org/apps/platform/service/](https://apps.cytoscape.org/apps/platform/service/), or the same page on the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property (**Edit > Preferences > Properties**, `cytoscape3`), when that is set. If you already know a service app's URL, it also shows the command to install it from the Command Line (**View > Show Command Panel**): `serviceapps install url=<service URL>`.
 
@@ -113,7 +117,7 @@ Updating an HCX (hierarchy) network in place isn't supported yet; that action is
 ## Restarts, upgrades and uninstalling
 
 - **Restarts.** Installed service apps are kept across restarts, with their menu entries. Each time Cytoscape starts, the app asks every service for its latest details in the background, so menus appear even when you're offline.
-- **Upgrades.** An app whose service now reports a newer version is upgraded in place.
+- **Upgrades.** An app whose service now reports a different version is upgraded in place.
 - **Uninstalling.** Uninstall from the manager, or with `serviceapps uninstall`, removes the app and its menu entry and stops its runs in progress.
 
 ## Settings
@@ -150,7 +154,7 @@ Each command's own description, arguments and example reply are in its command m
    - **`serviceInputSchema`**, for `serviceInput`. Parameters are keyed by their display names, and input columns by their names. It gives each value's type, allowed values, pattern, bounds, default and description. Column pickers say which table and column type they need; the columns come from the network the run targets.
    - **`uiInputSchema`**, for `uiInput`.
 3. **Start the run.** Call `serviceapps task call app=<app> serviceInput=<JSON> uiInput=<JSON>`.
-   - **`serviceInput`.** For example, `{"parameters":{"Resolution":0.5},"inputColumns":{"Gene names":"name"}}`. Omitted values take their defaults, and unknown names are rejected. Values are checked with the dialog's own rules, and every problem names its field.
+   - **`serviceInput` (optional when every value has a default).** For example, `{"parameters":{"Resolution":0.5},"inputColumns":{"Gene names":"name"}}`. Omitted values take their defaults, and unknown names are rejected. Values are checked with the dialog's own rules, and every problem names its field.
    - **`uiInput` (optional).** For example, `{"networkId":52}`.
      - `networkId` is a network SUID, by default the active network. The input data is read from it, and the results are applied to it.
      - `networkViewId` is a view SUID, by default every view of that network. Given alone, it also selects its network.

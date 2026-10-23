@@ -77,10 +77,6 @@ public class ServiceAppRunTask extends AbstractTask implements TunableValidator 
                 runs.create(appName, values.toServiceInput(), target, view, RunListener.NONE));
     }
 
-    public String appName() {
-        return appName;
-    }
-
     public CyNetwork target() {
         return target;
     }

@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.cytoscape.serviceapps.model.TaskStatus;
 
 /**
- * Background runs, for {@code serviceapps task call} (cytoscape/cytoscape#45).
+ * Background runs, for {@code serviceapps task call}.
  *
  * <p>Issues a Desktop task ID for each run, runs it on its own thread with a {@link
  * RecordingTaskMonitor}, and keeps its latest state in the spec's Task Status model. {@code
@@ -39,16 +39,7 @@ public class ServiceAppRunRegistry {
 
     public ServiceAppRunRegistry(ActiveRuns active) {
         this.active = active;
-        AtomicInteger count = new AtomicInteger();
-        this.executor =
-                Executors.newCachedThreadPool(
-                        runnable -> {
-                            Thread thread =
-                                    new Thread(
-                                            runnable, "service-app-run-" + count.incrementAndGet());
-                            thread.setDaemon(true);
-                            return thread;
-                        });
+        this.executor = Executors.newCachedThreadPool(DaemonThreads.named("service-app-run"));
     }
 
     /**
@@ -62,29 +53,29 @@ public class ServiceAppRunRegistry {
         record(id, TaskStatus.SUBMITTED, 0, "Submitting");
         ServiceAppRun run =
                 runFor.apply((status, progress, message) -> record(id, status, progress, message));
-        executor.execute(
-                () -> {
-                    try {
-                        run.run(new RecordingTaskMonitor());
-                    } catch (RuntimeException e) {
-                        LOGGER.info("Background run {} failed: {}", id, e.getMessage());
-                        record(
-                                id,
-                                TaskStatus.FAILED,
-                                current(id).map(s -> s.progress).orElse(0.0),
-                                e.getMessage());
-                    }
-                });
+        try {
+            executor.execute(
+                    () -> {
+                        try {
+                            run.run(new RecordingTaskMonitor());
+                        } catch (RuntimeException e) {
+                            LOGGER.info("Background run {} failed: {}", id, e.getMessage());
+                            record(
+                                    id,
+                                    TaskStatus.FAILED,
+                                    current(id).map(s -> s.progress).orElse(0.0),
+                                    e.getMessage());
+                        }
+                    });
+        } catch (RejectedExecutionException e) {
+            record(id, TaskStatus.FAILED, 0, "Desktop Service App is stopping");
+        }
         return id;
     }
 
     /** The run's latest state, with {@code result} null, or empty for an unknown or expired ID. */
     public synchronized Optional<TaskStatus> status(String id) {
         return current(id).map(ServiceAppRunRegistry::copy);
-    }
-
-    public ActiveRuns active() {
-        return active;
     }
 
     /** Cancels every run and stops the background threads. */

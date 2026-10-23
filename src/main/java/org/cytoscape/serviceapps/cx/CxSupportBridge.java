@@ -131,6 +131,9 @@ public class CxSupportBridge implements Cx2Support {
             return JsonParser.parseString(out.toString(StandardCharsets.UTF_8)).getAsJsonArray();
         } catch (Cx2Exception e) {
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new Cx2Exception("interrupted while writing the network as CX2", e);
         } catch (Exception e) {
             throw new Cx2Exception("could not write the network as CX2: " + e.getMessage(), e);
         }
@@ -172,6 +175,9 @@ public class CxSupportBridge implements Cx2Support {
             return networks;
         } catch (Cx2Exception e) {
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new Cx2Exception("interrupted while importing the CX2 network", e);
         } catch (Exception e) {
             throw new Cx2Exception("could not import the CX2 network: " + e.getMessage(), e);
         }

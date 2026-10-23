@@ -1,6 +1,5 @@
 package org.cytoscape.serviceapps.command;
 
-import java.net.ServerSocket;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -19,8 +18,8 @@ import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
+import org.cytoscape.serviceapps.testsupport.Waits;
 import org.cytoscape.work.TaskMonitor;
-import org.cytoscape.work.json.JSONResult;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -65,8 +64,7 @@ class CommandsHttpTest {
         StatusCommandTask task = new StatusCommandTask(registry, clients);
         task.name = name;
         task.run(monitor);
-        return JsonParser.parseString(task.getResults(JSONResult.class).getJSON())
-                .getAsJsonObject();
+        return CommandResults.json(task);
     }
 
     @Test
@@ -109,10 +107,7 @@ class CommandsHttpTest {
 
     @Test
     void installReportsAnUnreachableUrl() throws Exception {
-        int port;
-        try (ServerSocket socket = new ServerSocket(0)) {
-            port = socket.getLocalPort();
-        }
+        int port = Waits.freePort();
         String url = "http://127.0.0.1:" + port + "/hello";
 
         IllegalStateException e =

@@ -1,6 +1,8 @@
 package org.cytoscape.serviceapps.fixture;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -17,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The catalogue is test input for every later issue, so its coverage is checked here. */
+/** The catalogue is the input for most tests, so its coverage is checked here. */
 class ScenarioCatalogTest {
 
     @Test
@@ -94,7 +96,7 @@ class ScenarioCatalogTest {
         assertTrue(ScenarioCatalog.MENU_ROOTS.containsKey("menu-root-missing"));
         Set<String> roots =
                 ScenarioCatalog.MENU_ROOTS.values().stream()
-                        .filter(java.util.Objects::nonNull)
+                        .filter(Objects::nonNull)
                         .collect(Collectors.toSet());
         for (String root :
                 List.of(
@@ -127,7 +129,7 @@ class ScenarioCatalogTest {
     }
 
     private static List<Parameter> parametersOf(String... scenarios) {
-        return java.util.Arrays.stream(scenarios)
+        return Arrays.stream(scenarios)
                 .flatMap(
                         name ->
                                 Json.parse(

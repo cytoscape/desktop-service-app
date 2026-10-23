@@ -23,6 +23,8 @@ import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
 import org.cytoscape.serviceapps.testsupport.ContractNetwork;
 
+import static org.cytoscape.serviceapps.testsupport.Waits.sleep;
+
 /**
  * Reaches Desktop the way an agent does: {@code serviceapps task call} over CyREST, then {@code
  * task status} until the run finishes, against real Cytoscape in Docker with the real CX Support
@@ -227,12 +229,7 @@ public class DockerTaskCallHarness implements ContractHarness {
             args.put("uiInput", "{\"networkId\":" + target + "}");
         }
         try {
-            CyRest.Reply reply = cyrest.post("serviceapps", "task call", args);
-            if (!reply.ok()) {
-                return new Outcome(false, errorMessage(reply));
-            }
-            String taskId = reply.data().getAsJsonObject().get("task_id").getAsString();
-            return await(taskId);
+            return await(cyrest.post("serviceapps", "task call", args));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
@@ -262,7 +259,8 @@ public class DockerTaskCallHarness implements ContractHarness {
                 "task " + taskId + " didn't finish in " + RUN_TIMEOUT_MS + " ms");
     }
 
-    private void install(String scenario) {
+    /** Installs a fixture scenario's app, if this harness hasn't yet. */
+    public void install(String scenario) {
         if (installed.contains(scenario)) {
             return;
         }
@@ -289,7 +287,7 @@ public class DockerTaskCallHarness implements ContractHarness {
     }
 
     /** The second network's SUID. */
-    public long otherSuidForTests() {
+    public long otherSuid() {
         return other;
     }
 
@@ -303,11 +301,6 @@ public class DockerTaskCallHarness implements ContractHarness {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    /** Installs a fixture scenario's app, if this harness hasn't yet. */
-    public void installScenario(String scenario) {
-        install(scenario);
     }
 
     @Override
@@ -342,8 +335,11 @@ public class DockerTaskCallHarness implements ContractHarness {
 
     @Override
     public double[] position(int view, long nodeId) {
-        long node = row(target, "defaultnode", nodeId).get("SUID").getAsLong();
-        long viewSuid = targetViews.get(view);
+        return positionOf(
+                targetViews.get(view), row(target, "defaultnode", nodeId).get("SUID").getAsLong());
+    }
+
+    private double[] positionOf(long viewSuid, long node) {
         return new double[] {
             visual(viewSuid, node, "NODE_X_LOCATION"),
             visual(viewSuid, node, "NODE_Y_LOCATION"),
@@ -418,9 +414,10 @@ public class DockerTaskCallHarness implements ContractHarness {
         for (JsonObject row : rows(network, "defaultnode")) {
             String key = "node " + key(row);
             state.put(key, withoutSuid(row));
-            if (withPositions && row.has("cxid") && !row.get("cxid").isJsonNull()) {
+            if (withPositions && cxid(row) != null) {
+                // The row's SUID is at hand, so no lookup per node.
                 for (int i = 0; i < targetViews.size(); i++) {
-                    double[] p = position(i, row.get("cxid").getAsLong());
+                    double[] p = positionOf(targetViews.get(i), row.get("SUID").getAsLong());
                     state.put(key + " view " + i, List.of(p[0], p[1], p[2]));
                 }
             }
@@ -432,9 +429,14 @@ public class DockerTaskCallHarness implements ContractHarness {
     }
 
     private static String key(JsonObject row) {
-        return row.has("cxid") && !row.get("cxid").isJsonNull()
-                ? row.get("cxid").getAsString()
-                : "new " + row.get("name");
+        Long id = cxid(row);
+        return id != null ? id.toString() : "new " + row.get("name");
+    }
+
+    /** The row's fixture element ID, or null for an element the result added. */
+    private static Long cxid(JsonObject row) {
+        JsonElement id = row.get("cxid");
+        return id == null || id.isJsonNull() ? null : id.getAsLong();
     }
 
     private static String withoutSuid(JsonObject row) {
@@ -564,9 +566,7 @@ public class DockerTaskCallHarness implements ContractHarness {
 
     private JsonObject row(long network, String table, long id) {
         for (JsonObject row : rows(network, table)) {
-            if (row.has("cxid")
-                    && !row.get("cxid").isJsonNull()
-                    && row.get("cxid").getAsLong() == id) {
+            if (Long.valueOf(id).equals(cxid(row))) {
                 return row;
             }
         }
@@ -576,8 +576,9 @@ public class DockerTaskCallHarness implements ContractHarness {
     private Map<Long, Long> suids(String table) {
         Map<Long, Long> suids = new LinkedHashMap<>();
         for (JsonObject row : rows(target, table)) {
-            if (row.has("cxid") && !row.get("cxid").isJsonNull()) {
-                suids.put(row.get("cxid").getAsLong(), row.get("SUID").getAsLong());
+            Long id = cxid(row);
+            if (id != null) {
+                suids.put(id, row.get("SUID").getAsLong());
             }
         }
         return suids;
@@ -632,14 +633,5 @@ public class DockerTaskCallHarness implements ContractHarness {
         return errors.isEmpty()
                 ? reply.toString()
                 : errors.get(0).getAsJsonObject().get("message").getAsString();
-    }
-
-    private static void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
-        }
     }
 }

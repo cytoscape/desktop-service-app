@@ -10,6 +10,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.model.CyEdge;
+import org.cytoscape.model.CyIdentifiable;
 import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNetworkManager;
 import org.cytoscape.model.CyNode;
@@ -145,10 +146,7 @@ public class FakeCx2Support implements Cx2Support {
     }
 
     private static void setString(
-            CyNetwork network,
-            org.cytoscape.model.CyIdentifiable element,
-            String column,
-            JsonElement value) {
+            CyNetwork network, CyIdentifiable element, String column, JsonElement value) {
         var table = network.getRow(element).getTable();
         if (table.getColumn(column) == null) {
             table.createColumn(column, String.class, false);

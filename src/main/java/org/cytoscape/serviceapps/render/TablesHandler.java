@@ -10,8 +10,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.model.CyColumn;
+import org.cytoscape.model.CyEdge;
 import org.cytoscape.model.CyIdentifiable;
 import org.cytoscape.model.CyNetwork;
+import org.cytoscape.model.CyNode;
 import org.cytoscape.model.CyTable;
 import org.cytoscape.serviceapps.model.ResultAction;
 import org.cytoscape.serviceapps.request.IdMapper;
@@ -81,7 +83,7 @@ public class TablesHandler implements ActionHandler {
                                                                 + "' has unknown type '"
                                                                 + cx2
                                                                 + "'"));
-                checkNoConflict(table, name, type, cx2);
+                CxValues.requireType(table, name, type, "updateTables column");
                 types.put(name, type);
                 if (column.has("default")) {
                     defaults.put(name, CxValues.convert(column.get("default"), type));
@@ -134,20 +136,6 @@ public class TablesHandler implements ActionHandler {
 
     private record Write(CyIdentifiable element, String column, Object value) {}
 
-    private static void checkNoConflict(CyTable table, String name, ColumnType type, String cx2) {
-        CyColumn existing = table.getColumn(name);
-        if (existing != null && !CxValues.typeOf(existing).equals(type)) {
-            throw new IllegalArgumentException(
-                    "updateTables column '"
-                            + name
-                            + "' is "
-                            + CxValues.describe(CxValues.typeOf(existing))
-                            + " in Desktop but "
-                            + cx2
-                            + " in the result");
-        }
-    }
-
     private static CyIdentifiable element(
             IdMapper ids, CyNetwork network, boolean nodes, String key) {
         long id;
@@ -157,10 +145,10 @@ public class TablesHandler implements ActionHandler {
             return null;
         }
         if (nodes) {
-            var node = ids.node(id);
+            CyNode node = ids.node(id);
             return node != null && network.containsNode(node) ? node : null;
         }
-        var edge = ids.edge(id);
+        CyEdge edge = ids.edge(id);
         return edge != null && network.containsEdge(edge) ? edge : null;
     }
 }

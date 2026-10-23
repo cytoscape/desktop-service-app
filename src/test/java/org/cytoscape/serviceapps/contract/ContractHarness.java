@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * How {@link ResultActionContract} reaches Desktop. cytoscape/cytoscape#44 drives the menu path in
- * the JVM ({@link JvmMenuHarness}); cytoscape/cytoscape#45 drives {@code serviceapps task call}
- * against Cytoscape in Docker. Both run the same scenarios and assertions.
+ * How {@link ResultActionContract} reaches Desktop: the menu path in the JVM ({@link
+ * JvmMenuHarness}), and {@code serviceapps task call} against Cytoscape in Docker ({@link
+ * DockerTaskCallHarness}). Both run the same scenarios and assertions.
  *
  * <p>Every run starts from {@link #reset()}: a target network with the fixture's element IDs (nodes
  * 0, 1, 2, 7, 15, 25 and 100; edges 3 from 0 to 1 and 6 from 7 to 15) and one view, current; and a

@@ -3,6 +3,7 @@ package org.cytoscape.serviceapps.call;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -138,8 +139,7 @@ public class ServiceInputParser {
                 if (primitive.isString()
                         && ("true".equalsIgnoreCase(primitive.getAsString())
                                 || "false".equalsIgnoreCase(primitive.getAsString()))) {
-                    return Optional.of(
-                            List.of(primitive.getAsString().toLowerCase(java.util.Locale.ROOT)));
+                    return Optional.of(List.of(primitive.getAsString().toLowerCase(Locale.ROOT)));
                 }
             }
             return Optional.empty();

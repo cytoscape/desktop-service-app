@@ -35,6 +35,7 @@ final class Cx2Document {
     final List<Node> nodes = new ArrayList<>();
     final List<Edge> edges = new ArrayList<>();
     private final Map<String, Map<String, Attribute>> declarations = new LinkedHashMap<>();
+    private final Map<String, Map<String, Attribute>> aliases = new LinkedHashMap<>();
 
     /**
      * @throws IllegalArgumentException with a message for the user when the document is not CX2
@@ -119,13 +120,16 @@ final class Cx2Document {
         return attributes == null ? null : attributes.get(name);
     }
 
-    Map<String, Attribute> declarations(String kind) {
-        return declarations.getOrDefault(kind, Map.of());
+    /** The declared type of an attribute, or the type its value implies when undeclared. */
+    ColumnType typeOf(String kind, String name, JsonElement value) {
+        Attribute attribute = declared(kind, name);
+        return attribute != null ? attribute.type() : CxValues.infer(value);
     }
 
     private void declare(JsonObject declaration) {
         for (Map.Entry<String, JsonElement> kind : declaration.entrySet()) {
             Map<String, Attribute> attributes = new LinkedHashMap<>();
+            Map<String, Attribute> shortNames = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> attribute :
                     kind.getValue().getAsJsonObject().entrySet()) {
                 JsonObject spec = attribute.getValue().getAsJsonObject();
@@ -141,27 +145,34 @@ final class Cx2Document {
                                                                 + "' with unknown type '"
                                                                 + type
                                                                 + "'"));
-                attributes.put(
-                        attribute.getKey(),
-                        new Attribute(attribute.getKey(), columnType, spec.get("v")));
+                Attribute declared = new Attribute(name, columnType, spec.get("v"));
+                attributes.put(name, declared);
                 if (spec.has("a")) {
-                    // An alias: values use the short key; keep the full name for the column.
-                    attributes.put(
-                            "\u0000alias:" + spec.get("a").getAsString(),
-                            new Attribute(attribute.getKey(), columnType, spec.get("v")));
+                    // Values use the short key; the column keeps the full name.
+                    shortNames.put(spec.get("a").getAsString(), declared);
                 }
             }
             declarations.put(kind.getKey(), attributes);
+            aliases.put(kind.getKey(), shortNames);
         }
     }
 
-    /** An element's values keyed by full attribute name, resolving aliases. */
+    /**
+     * An element's values keyed by full attribute name, resolving aliases. A declared attribute the
+     * element leaves out takes its declared default ({@code v}), as the CX2 specification says.
+     */
     private Map<String, JsonElement> values(String kind, JsonObject entry) {
         Map<String, JsonElement> values = new LinkedHashMap<>();
         if (entry.has("v") && entry.get("v").isJsonObject()) {
+            Map<String, Attribute> shortNames = aliases.getOrDefault(kind, Map.of());
             for (Map.Entry<String, JsonElement> value : entry.getAsJsonObject("v").entrySet()) {
-                Attribute alias = declarations(kind).get("\u0000alias:" + value.getKey());
+                Attribute alias = shortNames.get(value.getKey());
                 values.put(alias != null ? alias.name() : value.getKey(), value.getValue());
+            }
+        }
+        for (Attribute attribute : declarations.getOrDefault(kind, Map.of()).values()) {
+            if (attribute.defaultValue() != null && !attribute.defaultValue().isJsonNull()) {
+                values.putIfAbsent(attribute.name(), attribute.defaultValue());
             }
         }
         return values;

@@ -74,13 +74,15 @@ public class RenderServiceAppUI {
             ActionHandler handler = handlers.get(action.action);
             if (handler == null) {
                 throw new RenderException(
-                        "Rendering failed: the result asks for unknown action '"
+                        RenderException.FAILED
+                                + ": the result asks for unknown action '"
                                 + action.action
                                 + "'. Nothing was applied.");
             }
             if (handler.needsNetwork() && ui.targetNetwork() == null) {
                 throw new RenderException(
-                        "Rendering failed: the result asks to "
+                        RenderException.FAILED
+                                + ": the result asks to "
                                 + action.action
                                 + ", which needs a network, and no network was targeted."
                                 + " Nothing was applied.");
@@ -115,7 +117,8 @@ public class RenderServiceAppUI {
             List<ResultAction> actions, int index, RenderReport report, RuntimeException e) {
         String reason = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
         StringBuilder text =
-                new StringBuilder("Rendering failed at ")
+                new StringBuilder(RenderException.FAILED)
+                        .append(" at ")
                         .append(actions.get(index).action)
                         .append(" (")
                         .append(index + 1)

@@ -52,4 +52,14 @@ class AppStoreLinkTest {
         assertEquals(site + "/apps/platform/service/", link.getServiceList());
         assertEquals(label, link.label());
     }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({
+        "apps-store,        apps-store", // no scheme: no authority, shown as set
+        "'http://a b/',     http://a b", // not a URI, shown as set
+        "file:///srv/store, file:///srv/store" // a URI without a host
+    })
+    void aSiteWithNoHostIsLabelledAsItIsSet(String setting, String label) {
+        assertEquals(label, AppStoreLink.from(withSite(setting)).label());
+    }
 }

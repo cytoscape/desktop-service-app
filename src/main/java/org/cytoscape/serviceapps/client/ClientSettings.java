@@ -31,7 +31,11 @@ public record ClientSettings(Duration connectTimeout, Duration readTimeout) {
                 millis(properties, READ_TIMEOUT_MS, DEFAULTS.readTimeout()));
     }
 
-    private static Duration millis(Properties properties, String key, Duration fallback) {
+    /**
+     * A positive number of milliseconds from {@code key}, or {@code fallback} when it is missing or
+     * invalid (logged). Also reads {@code RunSettings}.
+     */
+    public static Duration millis(Properties properties, String key, Duration fallback) {
         String value = properties.getProperty(key);
         if (value == null || value.isBlank()) {
             return fallback;

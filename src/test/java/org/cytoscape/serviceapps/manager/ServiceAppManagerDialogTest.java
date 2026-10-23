@@ -1,18 +1,31 @@
 package org.cytoscape.serviceapps.manager;
 
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.GraphicsEnvironment;
+import java.awt.Insets;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
 import org.junit.jupiter.api.AfterEach;
@@ -23,14 +36,22 @@ import org.junit.jupiter.api.io.TempDir;
 
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
+import org.cytoscape.serviceapps.testsupport.TestNetworks;
+import org.cytoscape.serviceapps.ui.DesktopColors;
 
+import static org.cytoscape.serviceapps.testsupport.Waits.until;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -61,7 +82,7 @@ class ServiceAppManagerDialogTest {
     }
 
     private void open() throws Exception {
-        open(AppStoreLink.from(new java.util.Properties()));
+        open(AppStoreLink.from(new Properties()));
     }
 
     private void open(AppStoreLink appStore) throws Exception {
@@ -114,15 +135,120 @@ class ServiceAppManagerDialogTest {
         return text[0];
     }
 
-    private boolean enabled(int row, int column) throws Exception {
-        boolean[] enabled = new boolean[1];
+    private void select(String name) throws Exception {
+        int row = rowOf(name);
+        onEdt(() -> table().setRowSelectionInterval(row, row));
+    }
+
+    private JLabel statusCell(String name) throws Exception {
+        int row = rowOf(name);
+        Component[] cell = new Component[1];
         onEdt(
                 () ->
-                        enabled[0] =
+                        cell[0] =
                                 table().prepareRenderer(
-                                                table().getCellRenderer(row, column), row, column)
-                                        .isEnabled());
-        return enabled[0];
+                                                table().getCellRenderer(
+                                                                row,
+                                                                ServiceAppManagerDialog.STATUS),
+                                                row,
+                                                ServiceAppManagerDialog.STATUS));
+        return (JLabel) cell[0];
+    }
+
+    private JLabel nameCell(String name) throws Exception {
+        int row = rowOf(name);
+        Component[] cell = new Component[1];
+        // Render a status cell first, so a color leaking into the shared renderer would show.
+        statusCell(name);
+        onEdt(
+                () ->
+                        cell[0] =
+                                table().prepareRenderer(
+                                                table().getCellRenderer(
+                                                                row, ServiceAppManagerDialog.NAME),
+                                                row,
+                                                ServiceAppManagerDialog.NAME));
+        return (JLabel) cell[0];
+    }
+
+    /** A mouse press at {@code (x, y)} on {@code target}, as a click there starts. */
+    private static void press(Component target, int x, int y) throws Exception {
+        onEdt(() -> mouse(target, MouseEvent.MOUSE_PRESSED, x, y, 1));
+    }
+
+    /**
+     * A double click at the middle of {@code name}'s row, as Swing delivers it: a press, a second
+     * press, then the click. Fails if the row shows the red highlight at any point on the way.
+     * Returns what the dialog shows right after, before any queued work such as the launch runs.
+     */
+    private String doubleClick(String name) throws Exception {
+        int row = rowOf(name);
+        Rectangle cell = table().getCellRect(row, ServiceAppManagerDialog.NAME, true);
+        int x = cell.x + 2;
+        int y = cell.y + cell.height / 2;
+        List<String> states = new ArrayList<>();
+        onEdt(
+                () -> {
+                    mouse(table(), MouseEvent.MOUSE_PRESSED, x, y, 1);
+                    states.add(rowState(row));
+                    mouse(table(), MouseEvent.MOUSE_PRESSED, x, y, 2);
+                    states.add(rowState(row));
+                    mouse(table(), MouseEvent.MOUSE_CLICKED, x, y, 2);
+                    states.add(rowState(row));
+                });
+        for (String state : states.subList(0, 2)) {
+            assertFalse(state.startsWith("red"), "no red flash before the second click: " + states);
+        }
+        return states.get(2);
+    }
+
+    /** The row's color name, the selected row and the Uninstall state. Runs on the EDT. */
+    private String rowState(int row) {
+        Color color =
+                table().prepareRenderer(
+                                table().getCellRenderer(row, ServiceAppManagerDialog.NAME),
+                                row,
+                                ServiceAppManagerDialog.NAME)
+                        .getBackground();
+        String name =
+                color.equals(ServiceAppManagerDialog.INVOKING_BACKGROUND)
+                        ? "blue"
+                        : color.equals(ServiceAppManagerDialog.SELECTED_BACKGROUND)
+                                ? "red"
+                                : color.equals(table().getBackground())
+                                        ? "plain"
+                                        : color.toString();
+        return name
+                + ", selected row "
+                + table().getSelectedRow()
+                + ", uninstall "
+                + dialog.uninstallButton().isEnabled();
+    }
+
+    /** The background of {@code name}'s cells, both columns checked to agree. */
+    private Color background(String name) throws Exception {
+        Color status = statusCell(name).getBackground();
+        assertEquals(status, nameCell(name).getBackground(), "both cells share the row's color");
+        return status;
+    }
+
+    private String state(String name) throws Exception {
+        String[] state = new String[1];
+        onEdt(() -> state[0] = rowState(rowOf(name)));
+        return state[0];
+    }
+
+    /** Records each launch with the row's state at the moment the input form would open. */
+    private List<String> recordLaunches(String name) {
+        List<String> launches = new ArrayList<>();
+        doAnswer(
+                        call -> {
+                            launches.add(call.getArgument(0) + ": " + rowState(rowOf(name)));
+                            return call.callRealMethod();
+                        })
+                .when(f.launcher)
+                .launch(anyString());
+        return launches;
     }
 
     @Test
@@ -132,19 +258,16 @@ class ServiceAppManagerDialogTest {
         assertEquals("Service Apps", dialog.getTitle());
         assertFalse(dialog.isModal());
         assertEquals("No Service Apps installed", dialog.emptyLabel().getText());
-        assertEquals(
-                javax.swing.SwingConstants.CENTER, dialog.emptyLabel().getHorizontalAlignment());
-        assertTrue(dialog.emptyLabel().isVisible());
+        assertEquals(SwingConstants.CENTER, dialog.emptyLabel().getHorizontalAlignment());
         assertFalse(dialog.showsTable());
     }
 
     /** The "Go to <host> and choose a service app to install" line, as displayed. */
     private String appStoreHint() {
-        java.awt.Container hint =
-                (java.awt.Container) find(dialog.getContentPane(), "appStoreHint");
+        Container hint = (Container) find(dialog.getContentPane(), "appStoreHint");
         StringBuilder text = new StringBuilder();
         for (Component part : hint.getComponents()) {
-            text.append(((javax.swing.JLabel) part).getText());
+            text.append(((JLabel) part).getText());
         }
         return text.toString();
     }
@@ -152,34 +275,34 @@ class ServiceAppManagerDialogTest {
     /** The link shows {@code label}, underlines on hover, and opens {@code url} on click. */
     private void assertLink(String label, String url) throws Exception {
         assertEquals("Go to " + label + " and choose a service app to install", appStoreHint());
-        javax.swing.JLabel link = dialog.appStoreLink();
+        JLabel link = dialog.appStoreLink();
         assertEquals(label, link.getText());
         assertEquals(url, link.getToolTipText());
         // Styled like Desktop's own links: link color, hand cursor, underline on hover only.
-        assertEquals(ServiceAppManagerDialog.linkColor(), link.getForeground());
-        assertEquals(java.awt.Cursor.HAND_CURSOR, link.getCursor().getType());
+        assertEquals(DesktopColors.link(), link.getForeground());
+        assertEquals(Cursor.HAND_CURSOR, link.getCursor().getType());
 
-        onEdt(() -> mouse(link, java.awt.event.MouseEvent.MOUSE_ENTERED));
+        onEdt(() -> mouse(link, MouseEvent.MOUSE_ENTERED, 2, 2, 1));
         assertEquals("<html><u>" + label + "</u></html>", link.getText());
-        onEdt(() -> mouse(link, java.awt.event.MouseEvent.MOUSE_EXITED));
+        onEdt(() -> mouse(link, MouseEvent.MOUSE_EXITED, 2, 2, 1));
         assertEquals(label, link.getText());
         assertTrue(opened.isEmpty(), "hovering opens nothing");
 
-        onEdt(() -> mouse(link, java.awt.event.MouseEvent.MOUSE_CLICKED));
+        onEdt(() -> mouse(link, MouseEvent.MOUSE_CLICKED, 2, 2, 1));
 
         assertEquals(List.of(url), opened);
     }
 
     @Test
     void withNoAppStoreSettingTheLinkGoesToThePublicAppStoresServiceApps() throws Exception {
-        open(AppStoreLink.from(new java.util.Properties()));
+        open(AppStoreLink.from(new Properties()));
 
         assertLink("apps.cytoscape.org", "https://apps.cytoscape.org/apps/platform/service/");
     }
 
     @Test
     void withAnAppStoreSettingTheLinkGoesToThatSitesServiceApps() throws Exception {
-        java.util.Properties properties = new java.util.Properties();
+        Properties properties = new Properties();
         properties.setProperty("appStoreDownloadSiteUrl1", "https://test.apps.example.org/");
 
         open(AppStoreLink.from(properties));
@@ -194,15 +317,14 @@ class ServiceAppManagerDialogTest {
         assertEquals(
                 "If you know a service app's URL, install it from the Command Line (View > Show"
                         + " Command Panel):",
-                ((javax.swing.JLabel) find(dialog.getContentPane(), "commandHint")).getText());
-        javax.swing.JTextField command =
-                (javax.swing.JTextField) find(dialog.getContentPane(), "installCommand");
+                ((JLabel) find(dialog.getContentPane(), "commandHint")).getText());
+        JTextField command = (JTextField) find(dialog.getContentPane(), "installCommand");
         assertEquals("serviceapps install url=<service URL>", command.getText());
         assertFalse(command.isEditable(), "selectable for copying, not editable");
     }
 
     @Test
-    void appsAreListedWithTheFourColumnsAndLiveStatus() throws Exception {
+    void appsAreListedWithTheirNameAndStatusInBoldGreenOrRed() throws Exception {
         String hello = f.install("hello");
         String noMenu = f.install("menu-root-missing");
         String offline = f.installOffline("Offline app");
@@ -210,14 +332,11 @@ class ServiceAppManagerDialogTest {
 
         assertTrue(dialog.showsTable());
         assertEquals(
-                List.of("Name", "Status", "Invoke", "Uninstall"),
-                List.of(
-                        table().getColumnName(0),
-                        table().getColumnName(1),
-                        table().getColumnName(2),
-                        table().getColumnName(3)));
+                List.of("Name", "Status"),
+                List.of(table().getColumnName(0), table().getColumnName(1)));
         assertEquals(3, table().getRowCount());
         assertEquals("Checking…", table().getValueAt(rowOf(hello), ServiceAppManagerDialog.STATUS));
+        assertFalse(statusCell(hello).getFont().isBold(), "Checking… is plain");
 
         f.checks.runAll();
         flush();
@@ -225,41 +344,190 @@ class ServiceAppManagerDialogTest {
         assertEquals("Online", table().getValueAt(rowOf(hello), ServiceAppManagerDialog.STATUS));
         assertEquals("Online", table().getValueAt(rowOf(noMenu), ServiceAppManagerDialog.STATUS));
         assertEquals("Offline", table().getValueAt(rowOf(offline), ServiceAppManagerDialog.STATUS));
-        assertTrue(
-                tooltip(rowOf(hello), ServiceAppManagerDialog.NAME)
-                        .contains(f.fixture.url("hello")));
-        assertFalse(enabled(rowOf(offline), ServiceAppManagerDialog.INVOKE));
-        assertEquals(
-                "Can't run: service unreachable",
-                tooltip(rowOf(offline), ServiceAppManagerDialog.INVOKE));
+        assertEquals(DesktopColors.success(), statusCell(hello).getForeground());
+        assertTrue(statusCell(hello).getFont().isBold());
+        assertEquals(DesktopColors.error(), statusCell(offline).getForeground());
+        assertTrue(statusCell(offline).getFont().isBold());
+        JLabel name = nameCell(hello);
+        assertEquals(table().getForeground(), name.getForeground(), "names keep the plain color");
+        assertFalse(name.getFont().isBold());
+        for (int column :
+                new int[] {ServiceAppManagerDialog.NAME, ServiceAppManagerDialog.STATUS}) {
+            assertFalse(table().isCellEditable(rowOf(hello), column));
+        }
     }
 
     @Test
-    void tickingInvokeLaunchesTheAppOnceAndUnticks() throws Exception {
+    void cellsArePaddedAndUnhighlightedRowsKeepTheTableBackground() throws Exception {
         String hello = f.install("hello");
         open();
-        int row = rowOf(hello);
-        assertTrue(table().isCellEditable(row, ServiceAppManagerDialog.INVOKE));
 
-        onEdt(() -> table().setValueAt(true, row, ServiceAppManagerDialog.INVOKE));
+        Insets padding = nameCell(hello).getInsets();
+        assertEquals(ServiceAppManagerDialog.CELL_PADDING, padding.left);
+        assertEquals(ServiceAppManagerDialog.CELL_PADDING, padding.right);
+        assertEquals(ServiceAppManagerDialog.CELL_PADDING, statusCell(hello).getInsets().left);
+        assertEquals(table().getBackground(), background(hello));
+    }
+
+    @Test
+    void onlyUninstallSitsLeftOfCloseAndStartsDisabled() throws Exception {
+        f.install("hello");
+        open();
+
+        Container buttons = dialog.uninstallButton().getParent();
+        assertEquals(
+                List.of("Uninstall", "Close"),
+                Arrays.stream(buttons.getComponents()).map(c -> ((JButton) c).getText()).toList());
+        assertFalse(dialog.uninstallButton().isEnabled());
+        assertEquals("Select a service app first", dialog.uninstallButton().getToolTipText());
+    }
+
+    @Test
+    void aSingleClickHighlightsTheRowLightRedAndEnablesUninstall() throws Exception {
+        String hello = f.install("hello");
+        String offline = f.installOffline("Offline app");
+        open();
+        f.checks.runAll();
         flush();
 
+        for (String name : List.of(hello, offline)) {
+            Rectangle row = table().getCellRect(rowOf(name), ServiceAppManagerDialog.NAME, true);
+            press(table(), row.x + 2, row.y + row.height / 2);
+            assertEquals(
+                    "plain, selected row " + rowOf(name) + ", uninstall false",
+                    state(name),
+                    "held back while a second click may come");
+
+            until(() -> dialog.uninstallButton().isEnabled());
+
+            assertEquals(rowOf(name), table().getSelectedRow());
+            assertEquals(ServiceAppManagerDialog.SELECTED_BACKGROUND, background(name));
+            assertTrue(dialog.uninstallButton().isEnabled());
+            assertEquals("Uninstall " + name, dialog.uninstallButton().getToolTipText());
+            // Status keeps its color on the light highlight.
+            assertEquals(
+                    name.equals(hello) ? DesktopColors.success() : DesktopColors.error(),
+                    statusCell(name).getForeground());
+            assertTrue(statusCell(name).getFont().isBold(), "still bold when highlighted");
+            assertEquals(table().getForeground(), nameCell(name).getForeground());
+        }
+        assertEquals(table().getBackground(), background(hello), "the other row is cleared");
+    }
+
+    @Test
+    void doubleClickingAnOnlineAppInvokesItWithTheRowLightBlueUntilTheFormCloses()
+            throws Exception {
+        String hello = f.install("hello");
+        open();
+        f.checks.runAll();
+        flush();
+        select(hello);
+        List<String> launches = recordLaunches(hello);
+
+        assertEquals("red, selected row 0, uninstall true", state(hello));
+
+        assertEquals("blue, selected row -1, uninstall false", doubleClick(hello));
+        flush();
+
+        assertEquals(
+                List.of(hello + ": blue, selected row -1, uninstall false"),
+                launches,
+                "launched once, with the row light blue while its form is open");
         verify(f.launcher, times(1)).launch(hello);
-        assertEquals(false, table().getValueAt(row, ServiceAppManagerDialog.INVOKE));
+        assertNull(dialog.invoking(), "the form has closed");
+        assertEquals("plain, selected row -1, uninstall false", state(hello));
         assertTrue(dialog.isDisplayable());
     }
 
     @Test
-    void anUnsupportedAppsInvokeIsDisabledWithTheReason() throws Exception {
-        String name = f.install("unsupported-file");
+    void theHighlightClearsEvenIfTheLaunchFails() throws Exception {
+        String hello = f.install("hello");
         open();
-        int row = rowOf(name);
+        f.checks.runAll();
+        flush();
+        doThrow(new IllegalStateException("boom")).when(f.launcher).launch(hello);
+        List<Throwable> thrown = new ArrayList<>();
+        Thread.UncaughtExceptionHandler[] previous = new Thread.UncaughtExceptionHandler[1];
+        onEdt(
+                () -> {
+                    previous[0] = Thread.currentThread().getUncaughtExceptionHandler();
+                    Thread.currentThread().setUncaughtExceptionHandler((t, e) -> thrown.add(e));
+                });
+        try {
+            assertEquals("blue, selected row -1, uninstall false", doubleClick(hello));
+            flush();
+        } finally {
+            onEdt(() -> Thread.currentThread().setUncaughtExceptionHandler(previous[0]));
+        }
 
-        assertFalse(table().isCellEditable(row, ServiceAppManagerDialog.INVOKE));
-        assertFalse(enabled(row, ServiceAppManagerDialog.INVOKE));
+        assertEquals(1, thrown.size(), "the failure still reaches the EDT's handler");
+        assertEquals("boom", thrown.get(0).getMessage());
+        assertNull(dialog.invoking());
+        assertEquals("plain, selected row -1, uninstall false", state(hello));
+    }
+
+    @Test
+    void doubleClickingAnAppThatCantRunDoesNothingAndItsTooltipSaysWhy() throws Exception {
+        String checking = f.install("hello");
+        open();
+        assertEquals(
+                "Checking…", table().getValueAt(rowOf(checking), ServiceAppManagerDialog.STATUS));
         assertTrue(
-                tooltip(row, ServiceAppManagerDialog.INVOKE)
-                        .startsWith("Can't run: it uses the parameter type 'file'"));
+                tooltip(rowOf(checking), ServiceAppManagerDialog.NAME)
+                        .endsWith(". Can't run: checking whether it is online."));
+        doubleClick(checking);
+        flush();
+        verify(f.launcher, never()).launch(anyString());
+        onEdt(dialog::dispose);
+        flush();
+
+        String offline = f.installOffline("Offline app");
+        String unsupported = f.install("unsupported-file");
+        open();
+        f.checks.runAll();
+        flush();
+        assertEquals(
+                "Online", table().getValueAt(rowOf(unsupported), ServiceAppManagerDialog.STATUS));
+        assertTrue(
+                tooltip(rowOf(offline), ServiceAppManagerDialog.NAME)
+                        .endsWith(". Can't run: it is offline."));
+        assertTrue(
+                tooltip(rowOf(unsupported), ServiceAppManagerDialog.NAME)
+                        .contains(". Can't run: it uses the parameter type 'file'"),
+                tooltip(rowOf(unsupported), ServiceAppManagerDialog.NAME));
+
+        for (String name : List.of(offline, unsupported)) {
+            assertEquals(
+                    "red, selected row " + rowOf(name) + ", uninstall true",
+                    doubleClick(name),
+                    "nothing runs; the clicks select the row");
+        }
+        flush();
+        verify(f.launcher, never()).launch(anyString());
+    }
+
+    @Test
+    void anOnlineAppsTooltipOffersADoubleClickOnceItIsFoundOnline() throws Exception {
+        String hello = f.install("hello");
+        open();
+        select(hello);
+
+        f.checks.runAll();
+        flush();
+
+        assertEquals(rowOf(hello), table().getSelectedRow(), "the selection survives the refresh");
+        assertEquals(
+                hello
+                        + " "
+                        + TestNetworks.scenario("hello").version
+                        + " at "
+                        + f.fixture.url("hello")
+                        + ". Double-click to run it.",
+                tooltip(rowOf(hello), ServiceAppManagerDialog.NAME));
+        assertTrue(
+                tooltip(rowOf(hello), ServiceAppManagerDialog.STATUS)
+                        .startsWith("Service status: "),
+                "the status tooltip says what the check found");
     }
 
     @Test
@@ -267,14 +535,15 @@ class ServiceAppManagerDialogTest {
         String hello = f.install("hello");
         open();
         confirm = false;
+        select(hello);
 
-        onEdt(() -> table().setValueAt(true, rowOf(hello), ServiceAppManagerDialog.UNINSTALL));
+        onEdt(dialog.uninstallButton()::doClick);
         flush();
 
         assertEquals(List.of("Uninstall " + hello + "? Are you sure?"), questions);
         verify(f.registry, never()).uninstall(anyString());
         assertEquals(1, table().getRowCount());
-        assertEquals(false, table().getValueAt(0, ServiceAppManagerDialog.UNINSTALL));
+        assertEquals(0, table().getSelectedRow(), "still selected");
     }
 
     @Test
@@ -283,20 +552,66 @@ class ServiceAppManagerDialogTest {
         String other = f.install("menu-root-apps");
         open();
         confirm = true;
+        select(hello);
 
-        onEdt(() -> table().setValueAt(true, rowOf(hello), ServiceAppManagerDialog.UNINSTALL));
+        onEdt(dialog.uninstallButton()::doClick);
         flush();
 
         verify(f.registry).uninstall(hello);
         assertEquals(1, table().getRowCount());
+        assertEquals(-1, table().getSelectedRow());
+        assertFalse(dialog.uninstallButton().isEnabled());
         assertTrue(dialog.isDisplayable());
 
-        onEdt(() -> table().setValueAt(true, rowOf(other), ServiceAppManagerDialog.UNINSTALL));
+        select(other);
+        onEdt(dialog.uninstallButton()::doClick);
         flush();
 
         assertFalse(dialog.showsTable());
-        assertTrue(dialog.emptyLabel().isVisible());
         assertTrue(dialog.isDisplayable());
+    }
+
+    @Test
+    void clickingAnywhereButTheHighlightedRowClearsItAndUninstall() throws Exception {
+        String hello = f.install("hello");
+        String other = f.install("menu-root-apps");
+        open();
+        f.checks.runAll();
+        flush();
+        onEdt(dialog::validate);
+        JTable table = table();
+        JScrollPane scroll =
+                (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, table);
+        Component[] elsewhere = {
+            table, // below the last row
+            table.getTableHeader(),
+            scroll,
+            scroll.getViewport(),
+            scroll.getParent(), // the content panel
+            dialog.getContentPane(),
+            dialog.uninstallButton().getParent()
+        };
+
+        for (Component area : elsewhere) {
+            select(hello);
+            assertTrue(dialog.uninstallButton().isEnabled());
+            int y = area == table ? table.getHeight() - 2 : 2;
+
+            press(area, 2, y);
+
+            assertEquals(-1, table.getSelectedRow(), "cleared by a click on " + area);
+            assertFalse(dialog.uninstallButton().isEnabled());
+            assertEquals(table.getBackground(), background(hello));
+        }
+
+        select(hello);
+        Rectangle row = table.getCellRect(rowOf(other), 0, true);
+        press(table, row.x + 2, row.y + row.height / 2);
+        assertEquals(rowOf(other), table.getSelectedRow(), "a click on another row moves it");
+        assertEquals(table.getBackground(), background(hello));
+
+        press(dialog.uninstallButton(), 2, 2);
+        assertEquals(rowOf(other), table.getSelectedRow(), "Uninstall keeps the row it acts on");
     }
 
     @Test
@@ -315,6 +630,40 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
+    void theHighlightFollowsItsAppWhenAnotherAppSortsInAboveIt() throws Exception {
+        String hello = f.install("hello");
+        open();
+        select(hello);
+        assertEquals(0, rowOf(hello));
+
+        String earlier = f.installOffline("Aardvark");
+        flush();
+
+        assertEquals(1, rowOf(hello));
+        assertEquals(rowOf(hello), table().getSelectedRow(), "still the same app");
+        assertEquals("Uninstall " + hello, dialog.uninstallButton().getToolTipText());
+        assertEquals(0, rowOf(earlier));
+    }
+
+    @Test
+    void aCheckingRowStaysPlainAfterAnOnlineRowIsDrawn() throws Exception {
+        String hello = f.install("hello");
+        open();
+        f.checks.runAll();
+        flush();
+        String checking = f.install("menu-root-apps");
+        flush();
+        assertEquals(
+                "Checking…", table().getValueAt(rowOf(checking), ServiceAppManagerDialog.STATUS));
+
+        statusCell(hello); // bold green, in the shared renderer
+        JLabel cell = statusCell(checking);
+
+        assertEquals(table().getForeground(), cell.getForeground());
+        assertFalse(cell.getFont().isBold());
+    }
+
+    @Test
     void theCloseButtonClosesTheDialogAndStopsChecks() throws Exception {
         f.install("hello");
         open();
@@ -322,6 +671,8 @@ class ServiceAppManagerDialogTest {
         assertNotNull(close);
 
         onEdt(close::doClick);
+        // dispose() delivers the window-closed event later; let it stop the checks first.
+        flush();
 
         assertFalse(dialog.isDisplayable());
         assertNoCheckRuns();
@@ -340,7 +691,8 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
-    void escapeClosesTheDialog() throws Exception {
+    void escapeClosesTheDialogAndStopsChecks() throws Exception {
+        f.install("hello");
         open();
         Object key =
                 dialog.getRootPane()
@@ -358,10 +710,11 @@ class ServiceAppManagerDialogTest {
         flush();
 
         assertFalse(dialog.isDisplayable());
+        assertNoCheckRuns();
     }
 
     @Test
-    void theMenuActionOpensOneDialogAndBringsItBack() throws Exception {
+    void theMenuActionOpensOneDialogBringsItBackAndReplacesItOnceClosed() throws Exception {
         ManageServiceAppsAction action =
                 new ManageServiceAppsAction(
                         () ->
@@ -379,10 +732,19 @@ class ServiceAppManagerDialogTest {
         onEdt(() -> action.actionPerformed(null));
 
         try {
-            assertTrue(first == action.dialog());
+            assertSame(first, action.dialog());
             assertTrue(first.isShowing());
         } finally {
             onEdt(first::dispose);
+        }
+
+        onEdt(() -> action.actionPerformed(null));
+        ServiceAppManagerDialog reopened = action.dialog();
+        try {
+            assertNotSame(first, reopened, "a closed dialog is replaced, not reused");
+            assertTrue(reopened.isShowing());
+        } finally {
+            onEdt(reopened::dispose);
         }
     }
 
@@ -392,26 +754,27 @@ class ServiceAppManagerDialogTest {
         verify(f.registry, never()).setReachable(anyString(), anyBoolean());
     }
 
-    private static void mouse(Component target, int id) {
+    /** A left-button mouse event; a press holds the button down. */
+    private static void mouse(Component target, int id, int x, int y, int clicks) {
         target.dispatchEvent(
-                new java.awt.event.MouseEvent(
+                new MouseEvent(
                         target,
                         id,
                         System.currentTimeMillis(),
-                        0,
-                        2,
-                        2,
-                        1,
+                        id == MouseEvent.MOUSE_PRESSED ? InputEvent.BUTTON1_DOWN_MASK : 0,
+                        x,
+                        y,
+                        clicks,
                         false,
-                        java.awt.event.MouseEvent.BUTTON1));
+                        MouseEvent.BUTTON1));
     }
 
-    private static Component find(java.awt.Container container, String name) {
+    private static Component find(Container container, String name) {
         for (Component child : container.getComponents()) {
             if (name.equals(child.getName())) {
                 return child;
             }
-            if (child instanceof java.awt.Container inner) {
+            if (child instanceof Container inner) {
                 Component found = find(inner, name);
                 if (found != null) {
                     return found;

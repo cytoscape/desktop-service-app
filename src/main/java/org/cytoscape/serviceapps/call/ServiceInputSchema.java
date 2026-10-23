@@ -126,7 +126,7 @@ public final class ServiceInputSchema {
 
     private static JsonObject parameter(ControlSpec control, Parameter parameter) {
         String description =
-                describe(control.tooltip(), parameter == null ? null : parameter.validationHelp);
+                join(control.tooltip(), parameter == null ? null : parameter.validationHelp);
         String defaultValue = parameter == null ? null : parameter.defaultValue;
         JsonObject property;
         switch (control.kind()) {
@@ -262,10 +262,6 @@ public final class ServiceInputSchema {
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    private static String describe(String description, String help) {
-        return join(description, help);
     }
 
     private static String join(String first, String second) {

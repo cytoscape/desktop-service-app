@@ -10,7 +10,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +31,7 @@ import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.view.presentation.property.BasicVisualLexicon;
 
+import static org.cytoscape.serviceapps.testsupport.Waits.until;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -187,7 +187,7 @@ class ServiceAppRunTest {
         double before = x(7);
         CompletableFuture<Void> running =
                 CompletableFuture.runAsync(() -> run.run(new RecordingTaskMonitor()));
-        waitFor(
+        until(
                 () ->
                         !fixture.liveTaskIds().isEmpty()
                                 && active.count("failure-never-complete") == 1);
@@ -286,6 +286,81 @@ class ServiceAppRunTest {
         assertTrue(fixture.liveTaskIds().isEmpty(), "the task is still deleted");
     }
 
+    /** A replacement reply for a GET of the task's {@code "status"} or {@code "result"}. */
+    private interface Answer {
+        /** The reply, or null to let the fixture answer. */
+        HttpTransport.Response reply(String what) throws IOException;
+    }
+
+    /** The real fixture, with the task's status or result answered by {@code answer}. */
+    private static HttpTransport replacing(String scenario, Answer answer) {
+        HttpTransport real = transport();
+        return (method, uri, body) -> {
+            String path = uri.getPath();
+            if (method.equals("GET") && path.startsWith("/" + scenario + "/")) {
+                HttpTransport.Response reply =
+                        answer.reply(path.endsWith("/status") ? "status" : "result");
+                if (reply != null) {
+                    return reply;
+                }
+            }
+            return real.send(method, uri, body);
+        };
+    }
+
+    private RunException fails(FixtureServer fixture, HttpTransport transport) {
+        return assertThrows(
+                RunException.class,
+                () -> run(fixture, "hello", FAST, transport).run(new RecordingTaskMonitor()));
+    }
+
+    @Test
+    void aResultThatCantBeFetchedFailsAsTheServicesFailureAndDeletesTheTask(FixtureServer fixture) {
+        RunException failure =
+                fails(
+                        fixture,
+                        replacing(
+                                "hello",
+                                what -> {
+                                    if (what.equals("result")) {
+                                        throw new IOException("connection reset");
+                                    }
+                                    return null;
+                                }));
+
+        assertTrue(
+                failure.getMessage()
+                        .startsWith("Service task failed: could not fetch the result: "),
+                failure.getMessage());
+        assertTrue(failure.getMessage().contains("connection reset"), failure.getMessage());
+        assertTrue(states.get(states.size() - 1).startsWith("failed"), states.toString());
+        assertTrue(fixture.liveTaskIds().isEmpty(), "the task is still deleted");
+    }
+
+    @Test
+    void aFailureWithNoMessageSaysTheAppReportedAFailure(FixtureServer fixture) {
+        HttpTransport.Response failed =
+                new HttpTransport.Response(200, "{\"status\":\"failed\",\"progress\":100}");
+
+        RunException failure = fails(fixture, replacing("hello", what -> failed));
+
+        assertEquals("Service task failed: hello reported a failure", failure.getMessage());
+    }
+
+    @Test
+    void aResultEntryThatIsNotAnActionFailsAsARenderingFailure(FixtureServer fixture) {
+        HttpTransport.Response complete =
+                new HttpTransport.Response(
+                        200, "{\"status\":\"complete\",\"progress\":100,\"result\":[1]}");
+
+        RunException failure =
+                fails(fixture, replacing("hello", what -> what.equals("result") ? complete : null));
+
+        assertEquals(
+                "Rendering failed: task result entry 1 is not an action: 1", failure.getMessage());
+        assertTrue(fixture.liveTaskIds().isEmpty(), "the task is still deleted");
+    }
+
     @Test
     void concurrentRunsEachFinishAndCleanUp(FixtureServer fixture) throws Exception {
         List<CompletableFuture<Void>> runs = new ArrayList<>();
@@ -313,15 +388,5 @@ class ServiceAppRunTest {
         assertEquals(RunSettings.DEFAULTS.timeout(), settings.timeout());
         assertEquals(RunSettings.DEFAULTS, RunSettings.from(null));
         assertNotEquals(RunSettings.DEFAULTS, settings);
-    }
-
-    static void waitFor(BooleanSupplier condition) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        while (!condition.getAsBoolean()) {
-            if (System.nanoTime() > deadline) {
-                throw new AssertionError("condition not met in 10 s");
-            }
-            Thread.sleep(10);
-        }
     }
 }

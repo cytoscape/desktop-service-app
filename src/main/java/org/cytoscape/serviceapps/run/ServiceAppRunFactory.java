@@ -46,18 +46,8 @@ public class ServiceAppRunFactory {
             CyNetwork target,
             CyNetworkView view,
             RunListener listener) {
-        InstalledServiceApp app =
-                registry.get(appName)
-                        .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "no service app named '"
-                                                        + appName
-                                                        + "' is installed"));
-        ServiceMetadata meta =
-                registry.getMeta(appName)
-                        .orElseThrow(
-                                () -> new IllegalStateException(appName + " has no metadata yet"));
+        InstalledServiceApp app = registry.require(appName);
+        ServiceMetadata meta = registry.requireMeta(appName);
         return new ServiceAppRun(
                 new ServiceAppRun.Plan(appName, meta, input, target, view),
                 clients.forUrl(app.url()),
@@ -66,9 +56,5 @@ public class ServiceAppRunFactory {
                 settings,
                 active,
                 listener);
-    }
-
-    public ActiveRuns active() {
-        return active;
     }
 }

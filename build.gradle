@@ -43,7 +43,7 @@ repositories {
 def cytoscapeVersion = '3.10.0'
 def gsonVersion = '2.11.0'
 
-// The hello-world service app used by the integration tier and runnable on its own (runFixture).
+// The hello-world service app used by the tests and runnable on its own (make fixture).
 // It is a test aid only and never goes into the bundle.
 sourceSets {
     fixture {
@@ -86,13 +86,17 @@ dependencies {
     testImplementation "org.slf4j:slf4j-api:1.7.36"
     testRuntimeOnly "org.slf4j:slf4j-simple:1.7.36"
 
-    // Real CyNetwork/CyTable for the integration tier — no OSGi, no desktop.
+    // Real CyNetwork/CyTable for the JVM tests — no OSGi, no desktop.
     testImplementation "org.cytoscape:model-impl:${cytoscapeVersion}"
     testImplementation "org.cytoscape:model-impl:${cytoscapeVersion}:tests"
     testImplementation "org.cytoscape:event-api:${cytoscapeVersion}:tests"
     // Real CyNetworkViews for the render and contract tests.
     testImplementation "org.cytoscape:viewmodel-impl:${cytoscapeVersion}"
     testImplementation "org.cytoscape:viewmodel-impl:${cytoscapeVersion}:tests"
+    // Desktop's real menu bar, so the submenu cleanup is tested against Desktop's own menu code.
+    testImplementation("org.cytoscape:swing-application-impl:${cytoscapeVersion}") {
+        transitive = false
+    }
     testImplementation "com.tngtech.archunit:archunit-junit5:1.3.0"
     cytoscapeApis.each { testImplementation "org.cytoscape:${it}:${cytoscapeVersion}" }
     testImplementation "org.osgi:org.osgi.core:6.0.0"
@@ -203,9 +207,9 @@ tasks.register('integrationTest', Test) {
     }
 }
 
-// Runs the hello-world service app on its own, for manual testing: ./gradlew runFixture
+// Runs the hello-world service app on its own: make fixture
 tasks.register('runFixture', JavaExec) {
-    description = 'Runs the hello-world service app fixture on http://localhost:8765 (override with -Pport=N).'
+    description = 'Runs the hello-world service app fixture on http://127.0.0.1:8765 (override with -Pport=N).'
     group = 'application'
     classpath = sourceSets.fixture.runtimeClasspath
     mainClass = 'org.cytoscape.serviceapps.fixture.FixtureMain'

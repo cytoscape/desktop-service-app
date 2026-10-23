@@ -2,13 +2,15 @@ package org.cytoscape.serviceapps.testsupport;
 
 import java.util.List;
 
-import org.cytoscape.model.CyEdge;
 import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNode;
 import org.cytoscape.model.CyTable;
 import org.cytoscape.model.NetworkTestSupport;
+import org.cytoscape.serviceapps.fixture.FixtureServer;
+import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
 import org.cytoscape.serviceapps.model.Json;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
+import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 
 /** Real networks for tests, from Cytoscape's model test support. */
 public final class TestNetworks {
@@ -71,13 +73,14 @@ public final class TestNetworks {
 
     /** A fixture scenario's metadata. */
     public static ServiceMetadata scenario(String name) {
-        return Json.parse(
-                org.cytoscape.serviceapps.fixture.ScenarioCatalog.get(name).metadata().toString(),
-                ServiceMetadata.class);
+        return Json.parse(ScenarioCatalog.get(name).metadata().toString(), ServiceMetadata.class);
     }
 
-    /** The only edge of {@link #withEveryColumnType()}. */
-    public static CyEdge firstEdge(CyNetwork network) {
-        return network.getEdgeList().get(0);
+    /** Installs a fixture scenario, served at its URL. Returns the app's name. */
+    public static String install(
+            ServiceAppRegistry registry, FixtureServer fixture, String scenario) {
+        ServiceMetadata meta = scenario(scenario);
+        registry.install(meta.name, meta.version, fixture.url(scenario), meta);
+        return meta.name;
     }
 }

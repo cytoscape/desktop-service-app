@@ -82,9 +82,7 @@ class ManagerFixture {
     }
 
     String install(String scenario) {
-        ServiceMetadata meta = TestNetworks.scenario(scenario);
-        registry.install(meta.name, meta.version, fixture.url(scenario), meta);
-        return meta.name;
+        return TestNetworks.install(registry, fixture, scenario);
     }
 
     String installOffline(String name) {

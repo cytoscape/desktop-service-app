@@ -1,22 +1,15 @@
 package org.cytoscape.serviceapps.run;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-
 import org.cytoscape.work.TaskMonitor;
 
-/** A task monitor for runs with no progress window: it keeps the latest progress and messages. */
+/** A task monitor for runs with no progress window: it keeps the latest progress and status. */
 public class RecordingTaskMonitor implements TaskMonitor {
 
-    private volatile String title;
     private volatile double progress;
     private volatile String statusMessage;
-    private final List<String> messages = new CopyOnWriteArrayList<>();
 
     @Override
-    public void setTitle(String title) {
-        this.title = title;
-    }
+    public void setTitle(String title) {}
 
     @Override
     public void setProgress(double progress) {
@@ -28,14 +21,9 @@ public class RecordingTaskMonitor implements TaskMonitor {
         this.statusMessage = message;
     }
 
+    /** Messages reach the caller through the run's listener instead. */
     @Override
-    public void showMessage(Level level, String message) {
-        messages.add(level + ": " + message);
-    }
-
-    public String title() {
-        return title;
-    }
+    public void showMessage(Level level, String message) {}
 
     public double progress() {
         return progress;
@@ -43,9 +31,5 @@ public class RecordingTaskMonitor implements TaskMonitor {
 
     public String statusMessage() {
         return statusMessage;
-    }
-
-    public List<String> messages() {
-        return List.copyOf(messages);
     }
 }

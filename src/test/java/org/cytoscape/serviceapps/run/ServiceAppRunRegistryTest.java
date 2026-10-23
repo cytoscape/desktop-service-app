@@ -24,14 +24,14 @@ import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 
-import static org.cytoscape.serviceapps.run.ServiceAppRunTest.waitFor;
+import static org.cytoscape.serviceapps.testsupport.Waits.until;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** Background runs and their Task Status records, as {@code task call} will use them. */
+/** Background runs and their Task Status records, as {@code task call} uses them. */
 @ExtendWith(FixtureServerExtension.class)
 class ServiceAppRunRegistryTest {
 
@@ -89,7 +89,7 @@ class ServiceAppRunRegistryTest {
     void aRunEndsCompleteWithItsSummary(FixtureServer fixture) throws Exception {
         String id = start(fixture, "failure-slow");
 
-        waitFor(() -> TaskStatus.COMPLETE.equals(status(id)));
+        until(() -> TaskStatus.COMPLETE.equals(status(id)));
 
         TaskStatus state = registry.status(id).orElseThrow();
         assertEquals(id, state.id);
@@ -102,7 +102,7 @@ class ServiceAppRunRegistryTest {
     void aFailedRunKeepsTheReason(FixtureServer fixture) throws Exception {
         String id = start(fixture, "failure-failed");
 
-        waitFor(() -> TaskStatus.FAILED.equals(status(id)));
+        until(() -> TaskStatus.FAILED.equals(status(id)));
 
         assertEquals(
                 "Service task failed: Algorithm failed: bad input",
@@ -112,13 +112,13 @@ class ServiceAppRunRegistryTest {
     @Test
     void aRunInProgressIsProcessingUntilCancelled(FixtureServer fixture) throws Exception {
         String id = start(fixture, "failure-never-complete");
-        waitFor(() -> TaskStatus.PROCESSING.equals(status(id)));
+        until(() -> TaskStatus.PROCESSING.equals(status(id)));
 
         active.cancelApp("failure-never-complete");
 
-        waitFor(() -> TaskStatus.FAILED.equals(status(id)));
+        until(() -> TaskStatus.FAILED.equals(status(id)));
         assertEquals("Cancelled", registry.status(id).orElseThrow().message);
-        waitFor(() -> fixture.liveTaskIds().isEmpty());
+        until(() -> fixture.liveTaskIds().isEmpty());
     }
 
     @Test
@@ -130,8 +130,20 @@ class ServiceAppRunRegistryTest {
 
         assertEquals(5, new HashSet<>(ids).size());
         for (String id : ids) {
-            waitFor(() -> TaskStatus.COMPLETE.equals(status(id)));
+            until(() -> TaskStatus.COMPLETE.equals(status(id)));
         }
+    }
+
+    @Test
+    void aRunStartedWhileStoppingFailsAtOnceInsteadOfStayingSubmitted(FixtureServer fixture) {
+        registry.shutdown();
+
+        String id = start(fixture, "hello");
+
+        TaskStatus state = registry.status(id).orElseThrow();
+        assertEquals(TaskStatus.FAILED, state.status);
+        assertEquals("Desktop Service App is stopping", state.message);
+        assertTrue(fixture.requests().isEmpty(), "nothing was sent");
     }
 
     @Test
@@ -149,7 +161,7 @@ class ServiceAppRunRegistryTest {
 
         assertTrue(registry.status(first).isEmpty());
         for (String id : rest) {
-            waitFor(() -> TaskStatus.FAILED.equals(status(id)));
+            until(() -> TaskStatus.FAILED.equals(status(id)));
         }
     }
 }

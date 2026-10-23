@@ -1,6 +1,7 @@
 package org.cytoscape.serviceapps.app;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -134,7 +135,7 @@ class RunPreconditionTest {
         Parameter file = new Parameter();
         file.displayName = "Input";
         file.type = Parameter.FILE;
-        meta.parameters = java.util.List.of(file);
+        meta.parameters = List.of(file);
 
         assertTrue(
                 RunPrecondition.check(app(true), meta, null, true)

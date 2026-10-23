@@ -62,8 +62,8 @@ public class ServiceAppLauncher {
     }
 
     /**
-     * Why the app can't run at all right now (unsupported or unreachable), for a greyed-out Invoke
-     * checkbox, or empty if it can.
+     * Why the app can't run at all right now (unsupported or unreachable), for the manager, or
+     * empty if it can.
      */
     public Optional<String> unavailableReason(String name) {
         Optional<InstalledServiceApp> app = registry.get(name);
@@ -80,17 +80,9 @@ public class ServiceAppLauncher {
      */
     public TaskIterator createTaskIterator(String name) {
         Optional<String> blocked = whyNot(name);
-        if (blocked.isPresent()) {
-            return new TaskIterator(new ExplainTask(messages, name, blocked.get()));
-        }
-        ServiceMetadata meta = registry.getMeta(name).orElseThrow();
-        CyNetwork target = applications.getCurrentNetwork();
-        CyNetworkView view = applications.getCurrentNetworkView();
-        if (view != null && view.getModel() != target) {
-            view = null;
-        }
-        FormSpec spec = forms.build(meta, registry.getLastValues(name), target);
-        return new TaskIterator(new ServiceAppRunTask(name, spec, target, view, registry, runs));
+        return blocked.isPresent()
+                ? new TaskIterator(new ExplainTask(messages, name, blocked.get()))
+                : runTasks(name);
     }
 
     /** Starts the app, or tells the user why it can't run. */
@@ -100,7 +92,18 @@ public class ServiceAppLauncher {
             messages.warn(name, blocked.get());
             return;
         }
-        taskManager.execute(createTaskIterator(name));
+        taskManager.execute(runTasks(name));
+    }
+
+    private TaskIterator runTasks(String name) {
+        ServiceMetadata meta = registry.getMeta(name).orElseThrow();
+        CyNetwork target = applications.getCurrentNetwork();
+        CyNetworkView view = applications.getCurrentNetworkView();
+        if (view != null && view.getModel() != target) {
+            view = null;
+        }
+        FormSpec spec = forms.build(meta, registry.getLastValues(name), target);
+        return new TaskIterator(new ServiceAppRunTask(name, spec, target, view, registry, runs));
     }
 
     /** Shows why an app can't run, for a menu entry clicked when Desktop thought it could. */
@@ -118,10 +121,6 @@ public class ServiceAppLauncher {
         @Override
         public void run(TaskMonitor monitor) {
             messages.warn(title, message);
-        }
-
-        String message() {
-            return message;
         }
     }
 }

@@ -108,6 +108,26 @@ final class CxValues {
         return value instanceof List list ? list : null;
     }
 
+    /**
+     * Checks that an existing column {@code name} has {@code type}, before anything is written.
+     *
+     * @param what how the message names it, such as "updateTables column"
+     */
+    static void requireType(CyTable table, String name, ColumnType type, String what) {
+        CyColumn existing = table.getColumn(name);
+        if (existing != null && !typeOf(existing).equals(type)) {
+            throw new IllegalArgumentException(
+                    what
+                            + " '"
+                            + name
+                            + "' is "
+                            + describe(typeOf(existing))
+                            + " in Desktop but "
+                            + describe(type)
+                            + " in the result");
+        }
+    }
+
     /** The CX2 type name of a column, for messages. */
     static String describe(ColumnType type) {
         return CyColumnTypes.toCx2(type).orElse(type.type().getSimpleName());

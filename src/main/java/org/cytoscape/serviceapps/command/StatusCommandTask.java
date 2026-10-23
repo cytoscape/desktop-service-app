@@ -1,6 +1,5 @@
 package org.cytoscape.serviceapps.command;
 
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
@@ -24,8 +23,9 @@ public class StatusCommandTask extends JsonResultTask {
             "Check that an installed service app's service is reachable";
     public static final String LONG_DESCRIPTION =
             "Calls the installed service app's GET /status endpoint and returns {name, reachable,"
-                    + " httpStatus, serviceStatus}. httpStatus is null when nothing answered."
-                    + " serviceStatus is the status the service reported, such as 'ok'.";
+                    + " httpStatus, serviceStatus, message?}. httpStatus is null when nothing"
+                    + " answered. serviceStatus is the status the service reported, such as 'ok'."
+                    + " message, present when the check found a problem, says what.";
     public static final String EXAMPLE_JSON =
             "{\"name\":\"Hello World\",\"reachable\":true,\"httpStatus\":200,"
                     + "\"serviceStatus\":\"ok\"}";
@@ -49,35 +49,20 @@ public class StatusCommandTask extends JsonResultTask {
     @Override
     public void run(TaskMonitor monitor) {
         String target = required(name, "name");
-        InstalledServiceApp app =
-                registry.get(target)
-                        .orElseThrow(
-                                () ->
-                                        new IllegalArgumentException(
-                                                "no service app named '"
-                                                        + target
-                                                        + "' is installed"));
+        InstalledServiceApp app = registry.require(target);
         monitor.setTitle("Check service app " + target);
 
         ServiceAppStatusChecker.Result result = checker.check(app.url());
         JsonObject json = new JsonObject();
         json.addProperty("name", target);
         json.addProperty("reachable", result.reachable());
-        if (result.httpStatus() == null) {
-            json.add("httpStatus", JsonNull.INSTANCE);
-        } else {
-            json.addProperty("httpStatus", result.httpStatus());
-        }
-        if (result.serviceStatus() == null) {
-            json.add("serviceStatus", JsonNull.INSTANCE);
-        } else {
-            json.addProperty("serviceStatus", result.serviceStatus());
-        }
+        // addProperty stores a null value as JSON null.
+        json.addProperty("httpStatus", result.httpStatus());
+        json.addProperty("serviceStatus", result.serviceStatus());
         if (result.message() != null) {
             json.addProperty("message", result.message());
         }
-        boolean reachable = result.reachable();
-        registry.setReachable(target, reachable);
+        registry.setReachable(target, result.reachable());
         setResult(json, Json.writeWithNulls(json));
     }
 }

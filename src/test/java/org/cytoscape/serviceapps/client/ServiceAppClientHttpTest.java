@@ -18,6 +18,7 @@ import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.model.ServiceStatus;
 import org.cytoscape.serviceapps.model.TaskRequest;
 import org.cytoscape.serviceapps.model.TaskStatus;
+import org.cytoscape.serviceapps.testsupport.Waits;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,10 +143,7 @@ class ServiceAppClientHttpTest {
 
     @Test
     void aClosedPortIsReportedAsNoResponse() throws Exception {
-        int port;
-        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
-            port = socket.getLocalPort();
-        }
+        int port = Waits.freePort();
         ServiceAppClient client =
                 new ServiceAppClient(
                         "http://127.0.0.1:" + port + "/hello",

@@ -60,7 +60,7 @@ public record Scenario(String name, JsonObject metadata, JsonArray result, Behav
         }
     }
 
-    /** The service app name in the metadata, which {@code serviceapps install} must match. */
+    /** The service app name in the metadata, which {@code serviceapps install} installs under. */
     public String appName() {
         return metadata.get("name").getAsString();
     }

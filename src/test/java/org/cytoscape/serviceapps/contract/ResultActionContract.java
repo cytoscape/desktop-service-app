@@ -19,9 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * The result action rendering contract (#44 test spec B), written once against {@link
- * ContractHarness}. Each scenario installs a fixture app whose result is the spec's example for one
- * action, runs it, and checks Desktop's state. The second network must never change.
+ * The result action rendering contract, written once against {@link ContractHarness}. Each scenario
+ * installs a fixture app whose result is the spec's example for one action, runs it, and checks
+ * Desktop's state. The second network must never change.
  *
  * <p>Failures are fail-fast, and their messages are asserted exactly. Every entry path runs these
  * same assertions, so the menu path and {@code task call} report identical messages.

@@ -10,6 +10,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.cytoscape.serviceapps.client.ServiceAppStatusChecker;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
 import org.cytoscape.serviceapps.registry.InstalledServiceApp;
@@ -26,6 +29,8 @@ import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
  * registry events, so installs and uninstalls made elsewhere show up. Closing stops pending checks.
  */
 public class ServiceAppManagerModel {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceAppManagerModel.class);
 
     /** An app's live status in the dialog. */
     public enum Status {
@@ -47,7 +52,7 @@ public class ServiceAppManagerModel {
     /**
      * One row.
      *
-     * @param invokeDisabledReason why Invoke is disabled, or null when it is enabled
+     * @param invokeDisabledReason why Desktop can't run the app, or null when it can
      * @param statusDetail what the status check found, for the tooltip; null while checking
      */
     public record Row(
@@ -137,7 +142,7 @@ public class ServiceAppManagerModel {
         changeListeners.add(listener);
     }
 
-    /** Invoke: the same launch as the app's menu entry. */
+    /** Runs the app: the same launch as its menu entry. */
     public void invoke(String name) {
         launcher.launch(name);
     }
@@ -170,23 +175,31 @@ public class ServiceAppManagerModel {
                     app.name(),
                     executor.submit(
                             () -> {
-                                ServiceAppStatusChecker.Result result = checker.check(app.url());
+                                Checked checked = checkNow(app);
                                 if (!open || Thread.currentThread().isInterrupted()) {
                                     return;
                                 }
-                                statuses.put(
-                                        app.name(),
-                                        result.reachable()
-                                                ? new Checked(
-                                                        Status.ONLINE,
-                                                        "Service status: " + result.serviceStatus())
-                                                : new Checked(Status.OFFLINE, result.message()));
-                                // Keeps the menu entry and Invoke in step with what was found.
-                                registry.setReachable(app.name(), result.reachable());
+                                statuses.put(app.name(), checked);
+                                // Keeps the menu entry in step with what was found.
+                                registry.setReachable(
+                                        app.name(), checked.status() == Status.ONLINE);
                                 changed();
                             }));
         } catch (RejectedExecutionException e) {
             // shutting down
+        }
+    }
+
+    /** Never throws: a check that fails unexpectedly shows the app Offline, saying why. */
+    private Checked checkNow(InstalledServiceApp app) {
+        try {
+            ServiceAppStatusChecker.Result result = checker.check(app.url());
+            return result.reachable()
+                    ? new Checked(Status.ONLINE, "Service status: " + result.serviceStatus())
+                    : new Checked(Status.OFFLINE, result.message());
+        } catch (RuntimeException e) {
+            LOGGER.warn("Status check for '{}' failed", app.name(), e);
+            return new Checked(Status.OFFLINE, "The status check failed: " + e.getMessage());
         }
     }
 
