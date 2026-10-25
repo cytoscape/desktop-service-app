@@ -30,6 +30,7 @@ import org.cytoscape.serviceapps.registry.RegistryEvent;
 import org.cytoscape.serviceapps.registry.RegistryListener;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.run.ActiveRuns;
+import org.cytoscape.serviceapps.ui.PlainText;
 import org.cytoscape.work.TaskFactory;
 
 import static org.cytoscape.work.ServiceProperties.ENABLE_FOR;
@@ -260,7 +261,8 @@ public class ServiceAppLifecycle implements RegistryListener {
         } else {
             properties.setProperty(ENABLE_FOR, RunPrecondition.enableFor(meta));
         }
-        properties.setProperty(TOOLTIP, tooltip);
+        // Desktop's menu item would read a name starting with <html> as HTML.
+        properties.setProperty(TOOLTIP, PlainText.literal(tooltip));
         return properties;
     }
 

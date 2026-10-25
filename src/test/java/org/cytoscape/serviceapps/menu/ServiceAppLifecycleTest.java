@@ -201,6 +201,22 @@ class ServiceAppLifecycleTest {
     }
 
     @Test
+    void anEntrysTooltipIsNeverReadAsHtml(FixtureServer fixture) {
+        String name =
+                install(
+                        "<html><img src='http://127.0.0.1:9/x.png'>",
+                        TestNetworks.scenario("menu-root-apps"),
+                        fixture.url("menu-root-apps"));
+
+        lifecycle.start();
+
+        assertEquals(
+                "\u2039html><img src='http://127.0.0.1:9/x.png'> 1.0 from 127.0.0.1:"
+                        + fixture.port(),
+                entry(name).getProperty(TOOLTIP));
+    }
+
+    @Test
     void anAppWhoseEntryWouldHaveNoTitleGetsNone(FixtureServer fixture) {
         ServiceMetadata untitled = TestNetworks.scenario("menu-root-analysis");
         untitled.name = " ";

@@ -61,6 +61,41 @@ class ServiceInputParserTest {
     }
 
     @Test
+    void problemsWithParametersThatShareANameNameTheirKeys() {
+        ServiceMetadata meta = TestNetworks.scenario("param-groups");
+        meta.parameters.get(4).validationType = "number";
+        meta.parameters.get(5).validationType = "number";
+
+        List<String> problems =
+                assertThrows(
+                                InvalidInputException.class,
+                                () ->
+                                        parser.parse(
+                                                params(
+                                                        "\"Nodes/Gap\":true,\"Clusters/Gap\":\"wide\""),
+                                                meta,
+                                                network))
+                        .problems();
+        assertEquals(1, problems.size(), problems.toString());
+        assertTrue(
+                problems.get(0).startsWith("Nodes/Gap: must be a single value"), problems.get(0));
+
+        problems =
+                assertThrows(
+                                InvalidInputException.class,
+                                () ->
+                                        parser.parse(
+                                                params(
+                                                        "\"Nodes/Gap\":\"x\",\"Clusters/Gap\":\"y\""),
+                                                meta,
+                                                network))
+                        .problems();
+        assertEquals(2, problems.size(), problems.toString());
+        assertTrue(problems.get(0).startsWith("Nodes/Gap: "), problems.get(0));
+        assertTrue(problems.get(1).startsWith("Clusters/Gap: "), problems.get(1));
+    }
+
+    @Test
     void givenValuesAreSentAsText() {
         assertEquals(
                 "hi", parse("hello", params("\"Greeting\":\"hi\"")).parameters().get("Greeting"));

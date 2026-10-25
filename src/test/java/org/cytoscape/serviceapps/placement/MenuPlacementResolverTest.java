@@ -216,6 +216,23 @@ class MenuPlacementResolverTest {
     }
 
     @Test
+    void namesAreNeverReadAsHtmlByDesktopsMenus() {
+        MenuPlacement placement =
+                MenuPlacementResolver.resolve(
+                                meta(
+                                        "Apps",
+                                        "<html><img src='http://127.0.0.1:9/x.png'>",
+                                        1.0,
+                                        "<HTML>Run",
+                                        2.0))
+                        .orElseThrow();
+
+        assertEquals(
+                List.of("\u2039html><img src='http://127 0 0 1:9/x png'>"), placement.submenus());
+        assertEquals("\u2039HTML>Run", placement.title());
+    }
+
+    @Test
     void submenusWithoutGravityAreLeftToDesktop() {
         MenuPlacement placement =
                 MenuPlacementResolver.resolve(meta("Apps", "Example", null, "Hello", null))

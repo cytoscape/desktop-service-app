@@ -28,6 +28,7 @@ import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.plaf.basic.BasicHTML;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,6 +126,7 @@ class ServiceAppManagerDialogTest {
         return -1;
     }
 
+    /** The cell's tooltip as the user reads it: without its HTML wrapper and escapes. */
     private String tooltip(int row, int column) throws Exception {
         String[] text = new String[1];
         onEdt(
@@ -134,7 +136,11 @@ class ServiceAppManagerDialogTest {
                                             table().getCellRenderer(row, column), row, column);
                     text[0] = ((JComponent) cell).getToolTipText();
                 });
-        return text[0];
+        assertTrue(text[0].startsWith("<html>") && text[0].endsWith("</html>"), text[0]);
+        return text[0].substring(6, text[0].length() - 7)
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&");
     }
 
     private void select(String name) throws Exception {
@@ -352,6 +358,34 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
+    void metadataIsShownAsTextNeverAsHtml() throws Exception {
+        String payload = "<html><img src='http://127.0.0.1:9/x.png'></html>";
+        String escaped = "&lt;html&gt;&lt;img src='http://127.0.0.1:9/x.png'&gt;&lt;/html&gt;";
+        ServiceMetadata meta = TestNetworks.scenario("hello");
+        meta.name = payload;
+        meta.description = payload;
+        meta.author = payload;
+        f.registry.install(payload, meta.version, ManagerFixture.OFFLINE_URL, meta);
+        open();
+
+        for (int column :
+                new int[] {
+                    ServiceAppManagerDialog.NAME,
+                    ServiceAppManagerDialog.DESCRIPTION,
+                    ServiceAppManagerDialog.AUTHOR
+                }) {
+            JLabel cell = cell(payload, column);
+            assertEquals(payload, cell.getText());
+            assertNull(cell.getClientProperty(BasicHTML.propertyKey), "column " + column);
+            assertTrue(cell.getToolTipText().contains(escaped), cell.getToolTipText());
+            assertFalse(cell.getToolTipText().contains("<img"), cell.getToolTipText());
+        }
+        assertEquals(
+                "<html>" + escaped + "</html>",
+                cell(payload, ServiceAppManagerDialog.AUTHOR).getToolTipText());
+    }
+
+    @Test
     void descriptionAndAuthorAreListedWithTheFullDescriptionOnHover() throws Exception {
         String hello = f.install("hello");
         ServiceMetadata sparse = TestNetworks.scenario("hello");
@@ -372,7 +406,7 @@ class ServiceAppManagerDialogTest {
                 table().getValueAt(row, ServiceAppManagerDialog.DESCRIPTION));
         assertEquals("Cytoscape team", table().getValueAt(row, ServiceAppManagerDialog.AUTHOR));
         assertEquals(
-                "Cytoscape team",
+                "<html>Cytoscape team</html>",
                 cell(hello, ServiceAppManagerDialog.AUTHOR).getToolTipText(),
                 "an author cut off in its cell can be read on hover");
 

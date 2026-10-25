@@ -120,7 +120,7 @@ public class ServiceInputParser {
                             value -> values.put(control.key(), value),
                             () ->
                                     problems.add(
-                                            control.label()
+                                            control.key()
                                                     + ": "
                                                     + expected(control)
                                                     + ", not "
@@ -178,9 +178,9 @@ public class ServiceInputParser {
                 .ifPresent(
                         problem ->
                                 problems.add(
-                                        problem.contains(control.label())
+                                        problem.contains(control.key())
                                                 ? problem
-                                                : control.label() + ": " + problem));
+                                                : control.key() + ": " + problem));
     }
 
     /** Columns the app always sends must exist on the target network. */

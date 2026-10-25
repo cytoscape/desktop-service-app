@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import org.cytoscape.serviceapps.model.CyWebMenuItem;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
+import org.cytoscape.serviceapps.ui.PlainText;
 
 /**
  * Turns a service app's {@code cyWebMenuItem} into a Desktop menu location. The only code that
@@ -111,12 +112,13 @@ public final class MenuPlacementResolver {
 
     /**
      * Dots separate menu levels and brackets carry gravity in Desktop's menu paths, so they can't
-     * appear inside a name.
+     * appear inside a name. Nor can HTML: see {@link PlainText#literal}.
      */
     static String clean(String name) {
         if (name == null) {
             return "";
         }
-        return name.replace('.', ' ').replace('[', '(').replace(']', ')').strip();
+        return PlainText.literal(
+                name.replace('.', ' ').replace('[', '(').replace(']', ')').strip());
     }
 }

@@ -42,6 +42,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellRenderer;
 
 import org.cytoscape.serviceapps.ui.DesktopColors;
+import org.cytoscape.serviceapps.ui.PlainText;
 
 /**
  * The Service Apps dialog: every installed app's name and status, or a centered "No Service Apps
@@ -142,6 +143,10 @@ public class ServiceAppManagerDialog extends JDialog {
                     @Override
                     public Component prepareRenderer(
                             TableCellRenderer renderer, int row, int column) {
+                        if (renderer instanceof JComponent plain) {
+                            // Names, descriptions and authors come from the service's metadata.
+                            PlainText.of(plain);
+                        }
                         Component cell = super.prepareRenderer(renderer, row, column);
                         decorate(cell, row, column);
                         return cell;
@@ -468,32 +473,22 @@ public class ServiceAppManagerDialog extends JDialog {
             component.setForeground(table.getForeground());
             String blocker = invokeBlocker(data);
             component.setToolTipText(
-                    data.name()
-                            + " "
-                            + data.version()
-                            + " at "
-                            + data.url()
-                            + (blocker == null
-                                    ? ". Double-click to run it."
-                                    : ". Can't run: " + blocker + "."));
+                    PlainText.tooltip(
+                            data.name()
+                                    + " "
+                                    + data.version()
+                                    + " at "
+                                    + data.url()
+                                    + (blocker == null
+                                            ? ". Double-click to run it."
+                                            : ". Can't run: " + blocker + ".")));
         } else if (column == DESCRIPTION) {
-            component.setToolTipText(
-                    data.description().isEmpty()
-                            ? null
-                            : "<html><div style='width:"
-                                    + TOOLTIP_WIDTH
-                                    + "px'>"
-                                    + escape(data.description())
-                                    + "</div></html>");
+            component.setToolTipText(PlainText.tooltip(data.description(), TOOLTIP_WIDTH));
         } else if (column == AUTHOR) {
-            component.setToolTipText(data.author().isEmpty() ? null : data.author());
+            component.setToolTipText(PlainText.tooltip(data.author()));
         } else {
-            component.setToolTipText(data.statusDetail());
+            component.setToolTipText(PlainText.tooltip(data.statusDetail()));
         }
-    }
-
-    private static String escape(String text) {
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** Status in bold green for Online and bold red for Offline; Checking… is plain. */

@@ -157,17 +157,15 @@ class DesktopUiWiringIT {
         }
         awaitLog(desktop, "Menu entry registered: Layout > Hello for '" + app("menu-root-layouts"));
         for (String scenario : UNDER_SERVICE_APPS) {
-            String logs = awaitLog(desktop, registered(scenario, "enabled"));
+            awaitLog(desktop, registered(scenario, "enabled"));
+            // Logged just after the registration line, so wait for it too.
             ServiceMetadata meta = TestNetworks.scenario(scenario);
-            assertTrue(
-                    logs.contains(
-                            "'"
-                                    + meta.name
-                                    + "' placed under Apps > Service Apps: "
-                                    + MenuPlacementResolver.resolve(meta)
-                                            .orElseThrow()
-                                            .fallbackReason()),
-                    logs);
+            awaitLog(
+                    desktop,
+                    "'"
+                            + meta.name
+                            + "' placed under Apps > Service Apps: "
+                            + MenuPlacementResolver.resolve(meta).orElseThrow().fallbackReason());
         }
         awaitLog(
                 desktop,

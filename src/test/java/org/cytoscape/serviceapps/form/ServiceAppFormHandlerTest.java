@@ -1,6 +1,7 @@
 package org.cytoscape.serviceapps.form;
 
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.GraphicsEnvironment;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.plaf.basic.BasicHTML;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.model.CyNetwork;
+import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.work.Tunable;
 import org.cytoscape.work.swing.GUITunableHandler;
@@ -60,11 +64,13 @@ class ServiceAppFormHandlerTest {
     }
 
     private ServiceAppFormHandler handler(String scenario) throws Exception {
+        return handler(TestNetworks.scenario(scenario));
+    }
+
+    private ServiceAppFormHandler handler(ServiceMetadata meta) throws Exception {
         Holder holder = new Holder();
         holder.form =
-                new ServiceAppForm(
-                        new FormSpecBuilder()
-                                .build(TestNetworks.scenario(scenario), new JsonObject(), network));
+                new ServiceAppForm(new FormSpecBuilder().build(meta, new JsonObject(), network));
         Field field = Holder.class.getField("form");
         GUITunableHandler created =
                 onEdt(
@@ -97,6 +103,62 @@ class ServiceAppFormHandlerTest {
         Field other = ServiceAppFormHandlerTest.class.getDeclaredField("network");
 
         assertNull(new ServiceAppFormHandlerFactory().createTunableHandler(other, this, null));
+    }
+
+    @Test
+    void metadataIsShownAsTextNeverAsHtml() throws Exception {
+        String payload = "<html><img src='http://127.0.0.1:9/x.png'></html>";
+        ServiceMetadata meta = TestNetworks.scenario("param-radio");
+        Parameter radio = meta.parameters.get(0);
+        radio.displayName = payload;
+        radio.description = payload;
+        radio.valueList = List.of(payload, "down");
+        Parameter choice = TestNetworks.scenario("param-dropdown").parameters.get(0);
+        choice.valueList = List.of(payload, "leiden");
+        choice.defaultValue = payload;
+        Parameter number = TestNetworks.scenario("param-text-number").parameters.get(0);
+        number.defaultValue = "not a number";
+        number.validationHelp = payload;
+        meta.parameters = List.of(radio, choice, number);
+        FormPanel panel = handler(meta).formPanel();
+
+        List<JLabel> labels = labels(panel, payload);
+        assertEquals(2, labels.size(), "the radio's label and the number's error");
+        for (JLabel label : labels) {
+            assertNull(label.getClientProperty(BasicHTML.propertyKey));
+        }
+        JRadioButton option = (JRadioButton) panel.find("param:" + payload + ":" + payload);
+        assertEquals(payload, option.getText());
+        assertNull(option.getClientProperty(BasicHTML.propertyKey));
+        String tooltip = ((JComponent) panel.find("param:" + payload)).getToolTipText();
+        assertEquals(
+                "<html>&lt;html&gt;&lt;img src='http://127.0.0.1:9/x.png'&gt;&lt;/html&gt;</html>",
+                tooltip);
+
+        @SuppressWarnings("unchecked")
+        JComboBox<String> combo = (JComboBox<String>) panel.find("param:Method");
+        Component item =
+                onEdt(
+                        () ->
+                                combo.getRenderer()
+                                        .getListCellRendererComponent(
+                                                new JList<>(), payload, 0, false, false));
+        assertEquals(payload, ((JLabel) item).getText());
+        assertNull(((JComponent) item).getClientProperty(BasicHTML.propertyKey));
+    }
+
+    /** Every label in {@code container} showing exactly {@code text}. */
+    private static List<JLabel> labels(Container container, String text) {
+        List<JLabel> found = new ArrayList<>();
+        for (Component child : container.getComponents()) {
+            if (child instanceof JLabel label && text.equals(label.getText())) {
+                found.add(label);
+            }
+            if (child instanceof Container nested) {
+                found.addAll(labels(nested, text));
+            }
+        }
+        return found;
     }
 
     @Test
@@ -142,7 +204,7 @@ class ServiceAppFormHandlerTest {
 
         JTextField field = assertInstanceOf(JTextField.class, panel.find("param:Algorithm"));
         assertEquals("louvain", field.getText());
-        assertEquals("Help text for Algorithm", field.getToolTipText());
+        assertEquals("<html>Help text for Algorithm</html>", field.getToolTipText());
         JLabel error = (JLabel) panel.find("error:Algorithm");
         assertFalse(error.isVisible());
 
