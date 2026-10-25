@@ -17,9 +17,9 @@ build: clean
 	$(GRADLE) jar
 	@ls -1 build/libs/*.jar | sed 's|^|  -> |'
 
-## release: build the jar stamped with a real version, e.g. make release VERSION=0.1.0
+## release: build the jar stamped with a real version, e.g. make release VERSION=0.1.1
 release: clean
-	@[ -n "$(VERSION)" ] || { echo "usage: make release VERSION=0.1.0" >&2; exit 2; }
+	@[ -n "$(VERSION)" ] || { echo "usage: make release VERSION=0.1.1" >&2; exit 2; }
 	@echo "$(VERSION)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$' \
 	  || { echo "refusing '$(VERSION)': not plain semver X.Y.Z" >&2; exit 2; }
 	$(GRADLE) jar -PreleaseVersion=$(VERSION)
@@ -56,9 +56,11 @@ fixture:
 clean:
 	$(GRADLE) clean
 
-## install-app: drop the bundle into a running Cytoscape, which hot-installs it
+## install-app: drop the bundle into a running Cytoscape, which hot-installs it, replacing any
+## earlier version of it there
 install-app: build
 	@mkdir -p "$(HOME)/CytoscapeConfiguration/3/apps/installed"
+	@rm -f "$(HOME)/CytoscapeConfiguration/3/apps/installed"/desktop-service-app-*.jar
 	@cp build/libs/*.jar "$(HOME)/CytoscapeConfiguration/3/apps/installed/"
 	@ls -1 build/libs/*.jar | xargs -n1 basename \
 	  | sed 's|^|  -> $(HOME)/CytoscapeConfiguration/3/apps/installed/|'
