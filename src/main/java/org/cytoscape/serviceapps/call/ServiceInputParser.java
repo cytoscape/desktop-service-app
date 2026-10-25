@@ -28,8 +28,8 @@ import org.cytoscape.serviceapps.request.ServiceInput;
  * FormSpecBuilder} builds for the target network, as the dialog does.
  *
  * <ul>
- *   <li>Keys are the parameters' display names and the input columns' names; unknown keys are
- *       rejected.
+ *   <li>Keys are the parameters' keys ({@link org.cytoscape.serviceapps.model.ParameterKeys}) and
+ *       the input columns' names; unknown keys are rejected.
  *   <li>Omitted keys take what the dialog would start with (its defaults), without remembered
  *       values.
  *   <li>A typed value or its text form is accepted; the service always receives text, and a

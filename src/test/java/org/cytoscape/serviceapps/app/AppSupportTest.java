@@ -9,6 +9,7 @@ import org.cytoscape.serviceapps.model.Json;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AppSupportTest {
@@ -56,5 +57,15 @@ class AppSupportTest {
         assertEquals("dynamic", AppSupport.scope(scenario("hello")));
         assertEquals("all", AppSupport.scope(scenario("input-columns")));
         assertEquals("dynamic", AppSupport.scope(scenario("input-none")));
+    }
+
+    @Test
+    void inputTypeNoneMeansNoData() {
+        assertEquals(null, AppSupport.inputType(scenario("input-type-none")));
+        assertFalse(AppSupport.needsNetwork(scenario("input-type-none")));
+        ServiceMetadata shouting = scenario("input-columns");
+        shouting.serviceInputDefinition.type = " NONE ";
+        assertEquals(null, AppSupport.inputType(shouting));
+        assertEquals(Optional.empty(), AppSupport.unsupportedReason(shouting, false));
     }
 }

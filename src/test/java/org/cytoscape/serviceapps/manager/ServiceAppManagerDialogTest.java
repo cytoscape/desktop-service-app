@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.IntStream;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
+import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.serviceapps.ui.DesktopColors;
 
@@ -140,35 +142,26 @@ class ServiceAppManagerDialogTest {
         onEdt(() -> table().setRowSelectionInterval(row, row));
     }
 
-    private JLabel statusCell(String name) throws Exception {
+    /** {@code name}'s cell in {@code column}, as the table renders it. */
+    private JLabel cell(String name, int column) throws Exception {
         int row = rowOf(name);
         Component[] cell = new Component[1];
         onEdt(
                 () ->
                         cell[0] =
                                 table().prepareRenderer(
-                                                table().getCellRenderer(
-                                                                row,
-                                                                ServiceAppManagerDialog.STATUS),
-                                                row,
-                                                ServiceAppManagerDialog.STATUS));
+                                                table().getCellRenderer(row, column), row, column));
         return (JLabel) cell[0];
     }
 
+    private JLabel statusCell(String name) throws Exception {
+        return cell(name, ServiceAppManagerDialog.STATUS);
+    }
+
     private JLabel nameCell(String name) throws Exception {
-        int row = rowOf(name);
-        Component[] cell = new Component[1];
         // Render a status cell first, so a color leaking into the shared renderer would show.
         statusCell(name);
-        onEdt(
-                () ->
-                        cell[0] =
-                                table().prepareRenderer(
-                                                table().getCellRenderer(
-                                                                row, ServiceAppManagerDialog.NAME),
-                                                row,
-                                                ServiceAppManagerDialog.NAME));
-        return (JLabel) cell[0];
+        return cell(name, ServiceAppManagerDialog.NAME);
     }
 
     /** A mouse press at {@code (x, y)} on {@code target}, as a click there starts. */
@@ -332,8 +325,10 @@ class ServiceAppManagerDialogTest {
 
         assertTrue(dialog.showsTable());
         assertEquals(
-                List.of("Name", "Status"),
-                List.of(table().getColumnName(0), table().getColumnName(1)));
+                List.of("Name", "Description", "Author", "Status"),
+                IntStream.range(0, table().getColumnCount())
+                        .mapToObj(table()::getColumnName)
+                        .toList());
         assertEquals(3, table().getRowCount());
         assertEquals("Checking…", table().getValueAt(rowOf(hello), ServiceAppManagerDialog.STATUS));
         assertFalse(statusCell(hello).getFont().isBold(), "Checking… is plain");
@@ -351,10 +346,54 @@ class ServiceAppManagerDialogTest {
         JLabel name = nameCell(hello);
         assertEquals(table().getForeground(), name.getForeground(), "names keep the plain color");
         assertFalse(name.getFont().isBold());
-        for (int column :
-                new int[] {ServiceAppManagerDialog.NAME, ServiceAppManagerDialog.STATUS}) {
+        for (int column = 0; column < table().getColumnCount(); column++) {
             assertFalse(table().isCellEditable(rowOf(hello), column));
         }
+    }
+
+    @Test
+    void descriptionAndAuthorAreListedWithTheFullDescriptionOnHover() throws Exception {
+        String hello = f.install("hello");
+        ServiceMetadata sparse = TestNetworks.scenario("hello");
+        sparse.name = "Sparse";
+        sparse.description = "  Finds   communities\n in <large> networks & more.  ";
+        sparse.author = null;
+        f.registry.install(sparse.name, sparse.version, ManagerFixture.OFFLINE_URL, sparse);
+        ServiceMetadata bare = TestNetworks.scenario("hello");
+        bare.name = "Bare";
+        bare.description = null;
+        bare.author = " ";
+        f.registry.install(bare.name, bare.version, ManagerFixture.OFFLINE_URL, bare);
+        open();
+
+        int row = rowOf(hello);
+        assertEquals(
+                "A fixture service app for tests",
+                table().getValueAt(row, ServiceAppManagerDialog.DESCRIPTION));
+        assertEquals("Cytoscape team", table().getValueAt(row, ServiceAppManagerDialog.AUTHOR));
+        assertEquals(
+                "Cytoscape team",
+                cell(hello, ServiceAppManagerDialog.AUTHOR).getToolTipText(),
+                "an author cut off in its cell can be read on hover");
+
+        assertEquals(
+                "Finds communities in <large> networks & more.",
+                table().getValueAt(rowOf("Sparse"), ServiceAppManagerDialog.DESCRIPTION),
+                "on one line");
+        String tooltip = cell("Sparse", ServiceAppManagerDialog.DESCRIPTION).getToolTipText();
+        assertTrue(tooltip.startsWith("<html><div style='width:"), tooltip);
+        assertTrue(
+                tooltip.contains("Finds communities in &lt;large&gt; networks &amp; more."),
+                tooltip);
+        assertEquals("", table().getValueAt(rowOf("Sparse"), ServiceAppManagerDialog.AUTHOR));
+        assertNull(cell("Sparse", ServiceAppManagerDialog.AUTHOR).getToolTipText());
+
+        assertEquals("", table().getValueAt(rowOf("Bare"), ServiceAppManagerDialog.DESCRIPTION));
+        assertNull(cell("Bare", ServiceAppManagerDialog.DESCRIPTION).getToolTipText());
+        assertEquals("", table().getValueAt(rowOf("Bare"), ServiceAppManagerDialog.AUTHOR));
+        assertEquals(
+                ServiceAppManagerDialog.CELL_PADDING,
+                cell("Bare", ServiceAppManagerDialog.DESCRIPTION).getInsets().left);
     }
 
     @Test

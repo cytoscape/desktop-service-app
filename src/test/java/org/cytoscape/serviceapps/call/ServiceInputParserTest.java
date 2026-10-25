@@ -49,6 +49,18 @@ class ServiceInputParserTest {
     }
 
     @Test
+    void parametersThatShareANameAreGivenByTheirGroupKeys() {
+        ServiceInput input = parse("param-groups", params("\"Clusters/Gap\":\"wide\""));
+
+        assertEquals("n", input.parameters().get("Nodes/Gap"));
+        assertEquals("wide", input.parameters().get("Clusters/Gap"));
+        assertTrue(
+                rejected("param-groups", params("\"Gap\":\"x\""))
+                        .get(0)
+                        .contains("unknown parameter 'Gap'"));
+    }
+
+    @Test
     void givenValuesAreSentAsText() {
         assertEquals(
                 "hi", parse("hello", params("\"Greeting\":\"hi\"")).parameters().get("Greeting"));

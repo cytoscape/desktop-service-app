@@ -11,9 +11,16 @@ import java.util.List;
  *     submenu's gravity in brackets, such as {@code Apps.Fixture[10.0]}
  * @param title the menu item's text
  * @param gravity the menu item's position; lower sorts higher
+ * @param fallbackReason why the app went under Apps &gt; Service Apps instead of the menu it named,
+ *     or null when it got the menu it named
  */
 public record MenuPlacement(
-        String topMenu, List<String> submenus, String preferredMenu, String title, double gravity) {
+        String topMenu,
+        List<String> submenus,
+        String preferredMenu,
+        String title,
+        double gravity,
+        String fallbackReason) {
 
     /** The path for logs and messages, such as {@code Apps > Fixture > Hello}. */
     public String describe() {

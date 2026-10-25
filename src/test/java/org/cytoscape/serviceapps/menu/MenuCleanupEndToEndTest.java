@@ -10,11 +10,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+import org.cytoscape.application.swing.CyAction;
 import org.cytoscape.serviceapps.client.JdkHttpTransport;
 import org.cytoscape.serviceapps.client.ServiceAppClient;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
+import org.cytoscape.serviceapps.manager.ManageServiceAppsAction;
+import org.cytoscape.serviceapps.model.CyWebMenuItem;
+import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.run.ActiveRuns;
 import org.cytoscape.serviceapps.testsupport.DesktopMenus;
@@ -96,6 +100,40 @@ class MenuCleanupEndToEndTest {
         onEdtAndWait(() -> registry.uninstall(name)); // as the manager dialog does
 
         assertEquals(List.of(), desktop.tree("Apps"));
+    }
+
+    @Test
+    void anAppUnderServiceAppsLeavesInstallAndManageInPlace() {
+        for (String title : List.of("Install", "Manage")) {
+            CyAction action =
+                    DesktopMenus.item(
+                            ManageServiceAppsAction.MENU, title, title.equals("Install") ? 1f : 2f);
+            onEdtAndWait(() -> desktop.swing().addAction(action));
+        }
+        ServiceMetadata meta = TestNetworks.scenario("menu-root-analysis");
+        meta.cyWebMenuItem.path = List.of(element("Community", 5.0), element("Hello", 20.0));
+        registry.install(meta.name, meta.version, fixture.url("menu-root-analysis"), meta);
+        DesktopMenus.flush();
+        assertEquals(
+                List.of(
+                        "Apps > Service Apps > Install",
+                        "Apps > Service Apps > Manage",
+                        "Apps > Service Apps > Community > Hello"),
+                desktop.tree("Apps"));
+
+        registry.uninstall(meta.name);
+        DesktopMenus.flush();
+
+        assertEquals(
+                List.of("Apps > Service Apps > Install", "Apps > Service Apps > Manage"),
+                desktop.tree("Apps"));
+    }
+
+    private static CyWebMenuItem.PathElement element(String name, double gravity) {
+        CyWebMenuItem.PathElement element = new CyWebMenuItem.PathElement();
+        element.name = name;
+        element.gravity = gravity;
+        return element;
     }
 
     @Test

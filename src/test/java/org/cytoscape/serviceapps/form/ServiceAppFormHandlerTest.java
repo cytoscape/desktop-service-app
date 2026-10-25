@@ -5,17 +5,22 @@ import java.awt.GraphicsEnvironment;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.TitledBorder;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -92,6 +97,42 @@ class ServiceAppFormHandlerTest {
         Field other = ServiceAppFormHandlerTest.class.getDeclaredField("network");
 
         assertNull(new ServiceAppFormHandlerFactory().createTunableHandler(other, this, null));
+    }
+
+    @Test
+    void groupedParametersAreDrawnInNestedTitledSections() throws Exception {
+        FormPanel panel = handler("param-groups").formPanel();
+
+        JPanel company = assertInstanceOf(JPanel.class, panel.find("group:Company"));
+        JPanel office =
+                assertInstanceOf(JPanel.class, panel.find("group:Company/Department/Office"));
+        JPanel identity =
+                assertInstanceOf(
+                        JPanel.class, panel.find("group:Company/Department/Office/Identity"));
+        assertEquals("Company", title(company));
+        assertEquals("Office", title(office));
+        assertTrue(SwingUtilities.isDescendingFrom(identity, office));
+        assertTrue(SwingUtilities.isDescendingFrom(panel.find("param:Office name"), office));
+        assertTrue(SwingUtilities.isDescendingFrom(panel.find("param:First name"), identity));
+        assertFalse(SwingUtilities.isDescendingFrom(panel.find("param:Top level"), company));
+        assertTrue(
+                SwingUtilities.isDescendingFrom(
+                        panel.find("param:Nodes/Gap"), panel.find("group:Nodes")));
+        assertTrue(
+                SwingUtilities.isDescendingFrom(
+                        panel.find("param:Clusters/Gap"), panel.find("group:Clusters")));
+        assertTrue(
+                ((JComponent) panel.find("param:Top level")).getParent() == panel,
+                "an ungrouped parameter is drawn as before");
+
+        Map<String, List<String>> values = onEdt(() -> panel.values().parameters());
+        assertEquals(List.of("n"), values.get("Nodes/Gap"));
+        assertEquals(List.of("c"), values.get("Clusters/Gap"));
+    }
+
+    private static String title(JPanel section) {
+        CompoundBorder border = assertInstanceOf(CompoundBorder.class, section.getBorder());
+        return assertInstanceOf(TitledBorder.class, border.getOutsideBorder()).getTitle();
     }
 
     @Test

@@ -7,7 +7,8 @@ import java.util.Map;
 /**
  * The values a user (through the dialog) or a caller (through {@code task call}) gives for one run.
  *
- * @param parameters one value per parameter, keyed by {@code displayName}
+ * @param parameters one value per parameter, keyed as {@link
+ *     org.cytoscape.serviceapps.model.ParameterKeys} keys them
  * @param inputColumns the chosen column names per input column, keyed by the input column's {@code
  *     name}; input columns with a fixed {@code columnName} are added by the request builder
  */

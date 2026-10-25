@@ -70,7 +70,9 @@ public class ServiceAppManagerDialog extends JDialog {
     public static final String INSTALL_COMMAND = "serviceapps install url=<service URL>";
 
     static final int NAME = 0;
-    static final int STATUS = 1;
+    static final int DESCRIPTION = 1;
+    static final int AUTHOR = 2;
+    static final int STATUS = 3;
 
     /** The single-clicked row, which Uninstall acts on. */
     static final Color SELECTED_BACKGROUND = new Color(0xfd, 0xe8, 0xe8);
@@ -82,9 +84,15 @@ public class ServiceAppManagerDialog extends JDialog {
     static final int CELL_PADDING = 8;
 
     private static final int ROW_EXTRA_HEIGHT = 8;
-    private static final int NAME_WIDTH = 480;
-    private static final int STATUS_WIDTH = 140;
-    private static final Dimension SIZE = new Dimension(720, 340);
+    private static final int NAME_WIDTH = 240;
+    private static final int DESCRIPTION_WIDTH = 360;
+    private static final int AUTHOR_WIDTH = 150;
+    private static final int STATUS_WIDTH = 110;
+    private static final Dimension SIZE = new Dimension(900, 340);
+
+    /** Wraps a long description in its tooltip. */
+    private static final int TOOLTIP_WIDTH = 360;
+
     private static final int MARGIN = 8;
     private static final int LINE_GAP = 6;
 
@@ -145,6 +153,8 @@ public class ServiceAppManagerDialog extends JDialog {
         table.setRowHeight(table.getRowHeight() + ROW_EXTRA_HEIGHT);
         table.getTableHeader().setReorderingAllowed(false);
         table.getColumnModel().getColumn(NAME).setPreferredWidth(NAME_WIDTH);
+        table.getColumnModel().getColumn(DESCRIPTION).setPreferredWidth(DESCRIPTION_WIDTH);
+        table.getColumnModel().getColumn(AUTHOR).setPreferredWidth(AUTHOR_WIDTH);
         table.getColumnModel().getColumn(STATUS).setPreferredWidth(STATUS_WIDTH);
         table.getColumnModel().getColumn(STATUS).setCellRenderer(new StatusRenderer());
         table.getSelectionModel().addListSelectionListener(e -> updateUninstall());
@@ -438,8 +448,9 @@ public class ServiceAppManagerDialog extends JDialog {
     }
 
     /**
-     * Padding, the row's highlight, and a tooltip saying what a double click does. Set on every
-     * call: a cell renderer keeps the last background and border it was given.
+     * Padding, the row's highlight, and the cell's tooltip: what a double click does on the name,
+     * the full text of a description or author cut off in its cell, the status check's finding. Set
+     * on every call: a cell renderer keeps the last background and border it was given.
      */
     private void decorate(Component cell, int row, int column) {
         if (!(cell instanceof JComponent component)) {
@@ -465,9 +476,24 @@ public class ServiceAppManagerDialog extends JDialog {
                             + (blocker == null
                                     ? ". Double-click to run it."
                                     : ". Can't run: " + blocker + "."));
+        } else if (column == DESCRIPTION) {
+            component.setToolTipText(
+                    data.description().isEmpty()
+                            ? null
+                            : "<html><div style='width:"
+                                    + TOOLTIP_WIDTH
+                                    + "px'>"
+                                    + escape(data.description())
+                                    + "</div></html>");
+        } else if (column == AUTHOR) {
+            component.setToolTipText(data.author().isEmpty() ? null : data.author());
         } else {
             component.setToolTipText(data.statusDetail());
         }
+    }
+
+    private static String escape(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** Status in bold green for Online and bold red for Offline; Checking… is plain. */
@@ -504,7 +530,7 @@ public class ServiceAppManagerDialog extends JDialog {
 
     private final class RowsTableModel extends AbstractTableModel {
 
-        private final String[] columns = {"Name", "Status"};
+        private final String[] columns = {"Name", "Description", "Author", "Status"};
         private List<ServiceAppManagerModel.Row> rows = List.of();
 
         void setRows(List<ServiceAppManagerModel.Row> rows) {
@@ -530,7 +556,12 @@ public class ServiceAppManagerDialog extends JDialog {
         @Override
         public Object getValueAt(int row, int column) {
             ServiceAppManagerModel.Row data = rows.get(row);
-            return column == NAME ? data.name() : data.status().text();
+            return switch (column) {
+                case NAME -> data.name();
+                case DESCRIPTION -> data.description();
+                case AUTHOR -> data.author();
+                default -> data.status().text();
+            };
         }
     }
 }

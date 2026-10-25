@@ -151,12 +151,45 @@ public final class ScenarioCatalog {
                 withParams(param("Weighted", "checkBox").add("defaultValue", false).build()));
         add(all, "param-node-column-filters", columnFilterParams("nodeColumn"));
         add(all, "param-edge-column-filters", columnFilterParams("edgeColumn"));
+        add(
+                all,
+                "param-column-filter-list",
+                withParams(
+                        param("Score", "nodeColumn")
+                                .add("columnTypeFilter", list("wholenumber", "list_of_string"))
+                                .build()));
+        // Cytoscape Web's groups: nesting in first-seen order, and its key rule for shared names
+        add(
+                all,
+                "param-groups",
+                withParams(
+                        param("Last name", "text")
+                                .add("groups", list("Company", "Department", "Office"))
+                                .build(),
+                        param("First name", "text")
+                                .add("groups", list("Company", "Department", "Office", "Identity"))
+                                .build(),
+                        param("Top level", "text").build(),
+                        param("Office name", "text")
+                                .add("groups", list("Company", "Department", "Office"))
+                                .build(),
+                        param("Gap", "text")
+                                .add("groups", list("Nodes"))
+                                .add("defaultValue", "n")
+                                .build(),
+                        param("Gap", "text")
+                                .add("groups", list("Clusters"))
+                                .add("defaultValue", "c")
+                                .build()));
 
         // Input columns and input definitions
         add(all, "input-columns", inputColumns("node"));
         add(all, "input-edge-columns", inputColumns("edge"));
         add(all, "input-network-graph", inputNetwork("graph", "cx2"));
         add(all, "input-none", inputNone());
+        JsonObject typeNone = inputNone();
+        typeNone.getAsJsonObject("serviceInputDefinition").addProperty("type", "none");
+        add(all, "input-type-none", typeNone);
 
         // Dialog description
         JsonObject shown = base();
@@ -178,6 +211,7 @@ public final class ScenarioCatalog {
         roots.put("menu-root-blank", "");
         roots.put("menu-root-apps", "Apps");
         roots.put("menu-root-layout", "Layout");
+        roots.put("menu-root-layouts", "Layouts");
         roots.put("menu-root-tools", "Tools");
         roots.put("menu-root-tools-lowercase", "tools");
         roots.put("menu-root-edit", "Edit");

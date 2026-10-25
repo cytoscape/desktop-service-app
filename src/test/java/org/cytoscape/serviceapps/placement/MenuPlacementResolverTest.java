@@ -11,14 +11,18 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
+import org.cytoscape.serviceapps.manager.ManageServiceAppsAction;
 import org.cytoscape.serviceapps.model.CyWebMenuItem;
 import org.cytoscape.serviceapps.model.Json;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** Where each {@code cyWebMenuItem} puts an app's menu entry, and when it gets none. */
+/**
+ * Where each {@code cyWebMenuItem} puts an app's menu entry: the Desktop menu it names, or Apps
+ * &gt; Service Apps.
+ */
 class MenuPlacementResolverTest {
 
     private static ServiceMetadata meta(String root, Object... nameGravityPairs) {
@@ -89,6 +93,22 @@ class MenuPlacementResolverTest {
                         "Hello",
                         2.0),
                 Arguments.of(
+                        "layouts",
+                        List.of("Hello", 2.0),
+                        "Layout",
+                        List.of(),
+                        "Layout",
+                        "Hello",
+                        2.0),
+                Arguments.of(
+                        " LAYOUTS ",
+                        List.of("Example", 1.0, "Hello", 2.0),
+                        "Layout",
+                        List.of("Example"),
+                        "Layout.Example[1.0]",
+                        "Hello",
+                        2.0),
+                Arguments.of(
                         "Apps",
                         List.of(),
                         "Apps",
@@ -116,10 +136,10 @@ class MenuPlacementResolverTest {
         assertEquals(preferredMenu, placement.preferredMenu());
         assertEquals(title, placement.title());
         assertEquals(gravity, placement.gravity());
-        assertTrue(MenuPlacementResolver.whyNoPlacement(meta(root, path.toArray())).isEmpty());
+        assertNull(placement.fallbackReason());
     }
 
-    static Stream<Arguments> notPlaced() {
+    static Stream<Arguments> fallback() {
         return Stream.of(
                 Arguments.of(null, "its metadata names no menu"),
                 Arguments.of("", "its metadata names no menu"),
@@ -130,21 +150,59 @@ class MenuPlacementResolverTest {
     }
 
     @ParameterizedTest(name = "root [{0}]")
-    @MethodSource("notPlaced")
-    void createsNoEntryOtherwise(String root, String reason) {
-        ServiceMetadata meta = meta(root, "Hello", 20.0);
+    @MethodSource("fallback")
+    void putsAnyOtherRootUnderServiceApps(String root, String reason) {
+        MenuPlacement placement =
+                MenuPlacementResolver.resolve(meta(root, "Hello", 20.0)).orElseThrow();
 
-        assertEquals(Optional.empty(), MenuPlacementResolver.resolve(meta));
-        assertEquals(Optional.of(reason), MenuPlacementResolver.whyNoPlacement(meta));
+        assertEquals("Apps", placement.topMenu());
+        assertEquals(List.of("Service Apps"), placement.submenus());
+        assertEquals(ManageServiceAppsAction.MENU, placement.preferredMenu());
+        assertEquals("Hello", placement.title());
+        assertEquals(20.0, placement.gravity());
+        assertEquals(reason, placement.fallbackReason());
+        assertEquals("Apps > Service Apps > Hello", placement.describe());
     }
 
     @Test
-    void anAppWithNoMenuItemAtAllGetsNoEntry() {
+    void aFallbackKeepsTheAppsOwnSubmenusAndGravities() {
+        MenuPlacement placement =
+                MenuPlacementResolver.resolve(
+                                meta(
+                                        "Analysis",
+                                        "Community",
+                                        5.0,
+                                        "Clustering",
+                                        null,
+                                        "Detect",
+                                        7.0))
+                        .orElseThrow();
+
+        assertEquals(List.of("Service Apps", "Community", "Clustering"), placement.submenus());
+        assertEquals("Apps.Service Apps.Community[5.0].Clustering", placement.preferredMenu());
+        assertEquals("Detect", placement.title());
+        assertEquals(7.0, placement.gravity());
+        assertEquals("Apps > Service Apps > Community > Clustering > Detect", placement.describe());
+    }
+
+    @Test
+    void anAppWithNoMenuItemAtAllIsListedUnderServiceAppsByName() {
         ServiceMetadata meta = new ServiceMetadata();
         meta.name = "x";
 
-        assertTrue(MenuPlacementResolver.resolve(meta).isEmpty());
-        assertTrue(MenuPlacementResolver.resolve(null).isEmpty());
+        MenuPlacement placement = MenuPlacementResolver.resolve(meta).orElseThrow();
+        assertEquals("Apps > Service Apps > x", placement.describe());
+        assertEquals(MenuPlacementResolver.DEFAULT_GRAVITY, placement.gravity());
+        assertEquals("its metadata names no menu", placement.fallbackReason());
+    }
+
+    @Test
+    void anEntryWithoutATitleIsNotPlaced() {
+        ServiceMetadata unnamed = new ServiceMetadata();
+        unnamed.name = " ";
+
+        assertEquals(Optional.empty(), MenuPlacementResolver.resolve(unnamed));
+        assertEquals(Optional.empty(), MenuPlacementResolver.resolve(null));
     }
 
     @Test
@@ -178,10 +236,11 @@ class MenuPlacementResolverTest {
                                     ServiceMetadata.class);
                     boolean desktopMenu =
                             root != null
-                                    && MenuPlacementResolver.DESKTOP_MENUS.stream()
-                                            .anyMatch(m -> m.equalsIgnoreCase(root.strip()));
-                    assertEquals(
-                            desktopMenu, MenuPlacementResolver.resolve(meta).isPresent(), scenario);
+                                    && (MenuPlacementResolver.DESKTOP_MENUS.stream()
+                                                    .anyMatch(m -> m.equalsIgnoreCase(root.strip()))
+                                            || "layouts".equalsIgnoreCase(root.strip()));
+                    MenuPlacement placement = MenuPlacementResolver.resolve(meta).orElseThrow();
+                    assertEquals(desktopMenu, placement.fallbackReason() == null, scenario);
                 });
     }
 }

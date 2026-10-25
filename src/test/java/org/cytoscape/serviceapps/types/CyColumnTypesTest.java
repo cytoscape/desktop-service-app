@@ -112,6 +112,33 @@ class CyColumnTypesTest {
     }
 
     @Test
+    void aListOfFiltersMatchesATypeThatPassesAnyOfThem() {
+        for (ColumnType type : ALL) {
+            assertEquals(
+                    type.equals(LONG) || type.equals(INTEGER) || type.equals(BOOLEAN),
+                    CyColumnTypes.matchesAny(List.of("wholenumber", "boolean"), type),
+                    type.toString());
+            assertEquals(
+                    type.equals(LIST_STRING),
+                    CyColumnTypes.matchesAny(List.of("nonsense", "list_of_string"), type),
+                    "an unknown filter in the list matches nothing on its own: " + type);
+            assertTrue(CyColumnTypes.matchesAny(List.of(), type), "an empty list matches all");
+            assertFalse(CyColumnTypes.matchesAny(List.of("nonsense"), type));
+        }
+    }
+
+    @Test
+    void filtersAreDescribedForMessages() {
+        assertEquals("number", CyColumnTypes.describe(List.of("number")));
+        assertEquals(
+                "wholenumber or list_of_string",
+                CyColumnTypes.describe(List.of("wholenumber", "list_of_string")));
+        assertEquals(List.of(), CyColumnTypes.filters(null));
+        assertEquals(List.of(), CyColumnTypes.filters(" "));
+        assertEquals(List.of("string"), CyColumnTypes.filters("string"));
+    }
+
+    @Test
     void numberFiltersNeverMatchLists() {
         assertFalse(CyColumnTypes.matches("number", LIST_DOUBLE));
         assertFalse(CyColumnTypes.matches("list_of_number", DOUBLE));

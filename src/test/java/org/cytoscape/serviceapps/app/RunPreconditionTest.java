@@ -62,6 +62,7 @@ class RunPreconditionTest {
     static Stream<Arguments> enableFor() {
         return Stream.of(
                 Arguments.of(null, null, "always"),
+                Arguments.of("none", "selected", "always"),
                 Arguments.of("node", "dynamic", "network"),
                 Arguments.of("edge", "all", "network"),
                 Arguments.of("network", null, "network"),
@@ -119,6 +120,10 @@ class RunPreconditionTest {
     void anAppWithNoInputNeedsNothing() {
         assertEquals(
                 Optional.empty(), RunPrecondition.check(app(true), meta(null, null), null, true));
+        assertEquals(
+                Optional.empty(),
+                RunPrecondition.check(app(true), meta("none", "selected"), null, true),
+                "type none takes no data, so needs no network or selection");
     }
 
     @Test

@@ -15,8 +15,10 @@ import org.cytoscape.serviceapps.form.FormSpec;
 import org.cytoscape.serviceapps.form.FormSpecBuilder;
 import org.cytoscape.serviceapps.form.TextRule;
 import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
+import org.cytoscape.serviceapps.types.CyColumnTypes;
 
 /**
  * The JSON Schema of {@code task call}'s {@code serviceInput} for one service app: {@code
@@ -28,6 +30,7 @@ import org.cytoscape.serviceapps.model.ServiceMetadata;
  * doesn't depend on Desktop's state, so an app always gets the same schema.
  *
  * <ul>
+ *   <li>Parameters are keyed as the dialog keys them: see {@link ParameterKeys}.
  *   <li>{@code text}: {@code number} or {@code integer} with bounds for {@code number}/{@code
  *       digits} validation, otherwise {@code string}, with the regex as a full-match {@code
  *       pattern}.
@@ -48,11 +51,11 @@ public final class ServiceInputSchema {
 
     public static JsonObject of(ServiceMetadata meta) {
         FormSpec spec = new FormSpecBuilder().build(meta, new JsonObject(), null);
-        Map<String, Parameter> byName = new LinkedHashMap<>();
-        for (Parameter parameter : meta.parameters()) {
-            if (parameter.displayName != null) {
-                byName.putIfAbsent(parameter.displayName, parameter);
-            }
+        // By key, as the controls are; of parameters that share a key the last is used.
+        Map<String, Parameter> byKey = new LinkedHashMap<>();
+        List<String> keys = ParameterKeys.of(meta.parameters());
+        for (int i = 0; i < keys.size(); i++) {
+            byKey.put(keys.get(i), meta.parameters().get(i));
         }
         Map<String, ServiceInputDefinition.InputColumn> columnsByName = new LinkedHashMap<>();
         if (meta.serviceInputDefinition != null) {
@@ -69,7 +72,7 @@ public final class ServiceInputSchema {
         JsonObject parameters = new JsonObject();
         List<String> requiredParameters = new ArrayList<>();
         for (ControlSpec control : spec.parameters()) {
-            Parameter parameter = byName.get(control.key());
+            Parameter parameter = byKey.get(control.key());
             parameters.add(control.key(), parameter(control, parameter));
             if (required(control, parameter)) {
                 requiredParameters.add(control.key());
@@ -89,8 +92,9 @@ public final class ServiceInputSchema {
         properties.add(
                 PARAMETERS,
                 Schemas.object(
-                        "Parameter values, keyed by each parameter's displayName. Omitted ones take"
-                                + " their default.",
+                        "Parameter values, keyed by each parameter's displayName, or by its groups"
+                                + " and displayName joined with '/' when several parameters share"
+                                + " a displayName. Omitted ones take their default.",
                         parameters,
                         requiredParameters));
         properties.add(
@@ -126,7 +130,13 @@ public final class ServiceInputSchema {
 
     private static JsonObject parameter(ControlSpec control, Parameter parameter) {
         String description =
-                join(control.tooltip(), parameter == null ? null : parameter.validationHelp);
+                join(
+                        join(
+                                control.tooltip(),
+                                parameter == null ? null : parameter.validationHelp),
+                        control.groups().isEmpty()
+                                ? null
+                                : "In group: " + String.join(" > ", control.groups()) + ".");
         String defaultValue = parameter == null ? null : parameter.defaultValue;
         JsonObject property;
         switch (control.kind()) {
@@ -183,8 +193,8 @@ public final class ServiceInputSchema {
                                             columnHint(
                                                     elements,
                                                     parameter == null
-                                                            ? null
-                                                            : parameter.columnTypeFilter)));
+                                                            ? List.of()
+                                                            : parameter.columnTypeFilter())));
                     if (!blank(defaultValue)) {
                         property.addProperty("default", defaultValue);
                     }
@@ -200,7 +210,9 @@ public final class ServiceInputSchema {
         String description =
                 join(
                         control.tooltip(),
-                        columnHint(elements, column == null ? null : column.dataType));
+                        columnHint(
+                                elements,
+                                CyColumnTypes.filters(column == null ? null : column.dataType)));
         String defaultColumn = column == null ? null : column.defaultColumnName;
         if (control.multiSelect()) {
             JsonObject property =
@@ -237,12 +249,14 @@ public final class ServiceInputSchema {
     }
 
     /** "A node column of the target network whose type is number." */
-    static String columnHint(String elements, String filter) {
+    static String columnHint(String elements, List<String> filters) {
         String hint =
                 "The name of "
                         + ("edge".equals(elements) ? "an edge" : "a node")
                         + " column of the target network";
-        return blank(filter) ? hint + "." : hint + " whose type is " + filter + ".";
+        return filters.isEmpty()
+                ? hint + "."
+                : hint + " whose type is " + CyColumnTypes.describe(filters) + ".";
     }
 
     private static void addNumber(JsonObject property, String key, double value, boolean whole) {

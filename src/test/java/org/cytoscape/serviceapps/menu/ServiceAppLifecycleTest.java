@@ -3,6 +3,7 @@ package org.cytoscape.serviceapps.menu;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
+import org.cytoscape.serviceapps.manager.ManageServiceAppsAction;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.placement.MenuPlacement;
 import org.cytoscape.serviceapps.placement.MenuPlacementResolver;
@@ -158,7 +160,7 @@ class ServiceAppLifecycleTest {
     }
 
     @Test
-    void onlyAppsNamingADesktopMenuGetAnEntry(FixtureServer fixture) {
+    void appsNamingADesktopMenuGetAnEntryThereAndOthersUnderServiceApps(FixtureServer fixture) {
         Map<String, String> expectedTop =
                 Map.of(
                         "menu-root-apps", "Apps",
@@ -166,9 +168,10 @@ class ServiceAppLifecycleTest {
                         "menu-root-edit", "Edit",
                         "menu-root-help", "Help",
                         "menu-root-layout", "Layout",
+                        "menu-root-layouts", "Layout",
                         "menu-multi-level", "Apps",
                         "menu-empty-path", "Apps");
-        List<String> none =
+        List<String> underServiceApps =
                 List.of(
                         "menu-root-analysis",
                         "menu-root-data",
@@ -176,7 +179,7 @@ class ServiceAppLifecycleTest {
                         "menu-root-missing",
                         "menu-root-blank");
         expectedTop.keySet().forEach(s -> install(fixture, s));
-        none.forEach(s -> install(fixture, s));
+        underServiceApps.forEach(s -> install(fixture, s));
 
         lifecycle.start();
 
@@ -186,18 +189,35 @@ class ServiceAppLifecycleTest {
                     String menu = props.getProperty(PREFERRED_MENU);
                     assertTrue(
                             menu.equals(top) || menu.startsWith(top + "."), scenario + ": " + menu);
+                    assertFalse(menu.startsWith(ManageServiceAppsAction.MENU), scenario);
                 });
-        assertEquals(expectedTop.size(), live.size());
-        for (String scenario : none) {
-            assertNull(entry("Fixture " + scenario), scenario);
-            assertTrue(lifecycle.withoutEntry().contains("Fixture " + scenario), scenario);
+        for (String scenario : underServiceApps) {
+            Properties props = entry("Fixture " + scenario);
+            assertEquals(ManageServiceAppsAction.MENU, props.getProperty(PREFERRED_MENU), scenario);
+            assertEquals("Hello", props.getProperty(TITLE), scenario);
         }
+        assertEquals(expectedTop.size() + underServiceApps.size(), live.size());
+        assertTrue(lifecycle.withoutEntry().isEmpty(), lifecycle.withoutEntry().toString());
+    }
+
+    @Test
+    void anAppWhoseEntryWouldHaveNoTitleGetsNone(FixtureServer fixture) {
+        ServiceMetadata untitled = TestNetworks.scenario("menu-root-analysis");
+        untitled.name = " ";
+        untitled.cyWebMenuItem.path = new ArrayList<>();
+        registry.install("Untitled", untitled.version, fixture.url("menu-root-analysis"), untitled);
+
+        lifecycle.start();
+
+        assertNull(entry("Untitled"));
+        assertEquals(List.of("Untitled"), lifecycle.withoutEntry());
     }
 
     @Test
     void enableForFollowsTheInputTypeAndScope() {
         Map<String, String> expected = new LinkedHashMap<>();
         expected.put("none", "always");
+        expected.put("typeNone", "always");
         for (String type : List.of("node", "edge", "network")) {
             expected.put(type + "/dynamic", "network");
             expected.put(type + "/all", "network");
@@ -210,6 +230,8 @@ class ServiceAppLifecycleTest {
             ServiceMetadata meta = TestNetworks.scenario("menu-root-apps");
             if (key.equals("none")) {
                 meta.serviceInputDefinition = null;
+            } else if (key.equals("typeNone")) {
+                meta.serviceInputDefinition.type = "none";
             } else {
                 String[] typeScope = key.split("/");
                 meta.serviceInputDefinition.type = typeScope[0];

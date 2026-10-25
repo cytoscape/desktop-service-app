@@ -21,6 +21,7 @@ import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
 import org.cytoscape.serviceapps.client.ServiceAppException;
 import org.cytoscape.serviceapps.cx.Cx2Support;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.placement.MenuPlacement;
 import org.cytoscape.serviceapps.placement.MenuPlacementResolver;
@@ -195,7 +196,7 @@ public class ServiceAppLifecycle implements RegistryListener {
         Optional<MenuPlacement> placement = MenuPlacementResolver.resolve(meta.get());
         if (placement.isEmpty()) {
             remove(name);
-            String reason = MenuPlacementResolver.whyNoPlacement(meta.get()).orElse("no menu");
+            String reason = "its menu entry has no title";
             if (!reason.equals(noEntry.put(name, reason))) {
                 LOGGER.info("No menu entry for '{}': {}", name, reason);
             }
@@ -220,6 +221,22 @@ public class ServiceAppLifecycle implements RegistryListener {
                 placement.get().describe(),
                 name,
                 disabled.map(reason -> "disabled: " + reason).orElse("enabled"));
+        List<String> shared = ParameterKeys.duplicates(meta.get().parameters());
+        if (!shared.isEmpty()) {
+            LOGGER.warn(
+                    "'{}' has parameters with the same name in the same groups; only the last of"
+                            + " each is used: {}",
+                    name,
+                    String.join(", ", shared));
+        }
+        if (placement.get().fallbackReason() != null) {
+            LOGGER.warn(
+                    "'{}' placed under {} > {}: {}",
+                    name,
+                    MenuPlacementResolver.FALLBACK_MENU,
+                    MenuPlacementResolver.FALLBACK_SUBMENU,
+                    placement.get().fallbackReason());
+        }
     }
 
     private Optional<String> disabledReason(InstalledServiceApp app, ServiceMetadata meta) {

@@ -2,6 +2,8 @@ package org.cytoscape.serviceapps.model;
 
 import java.util.List;
 
+import com.google.gson.annotations.JsonAdapter;
+
 /**
  * One input the service asks the user for.
  *
@@ -36,10 +38,32 @@ public class Parameter {
     public String defaultValue;
 
     public String validationType;
-    public String columnTypeFilter;
+
+    /**
+     * Column types a column picker offers: a column matches when it passes any of them. Read from a
+     * string or a list; empty or null offers every column.
+     */
+    @JsonAdapter(MetadataLists.StringOrList.class)
+    public List<String> columnTypeFilter;
+
     public String validationHelp;
     public String validationRegex;
     public Double minValue;
     public Double maxValue;
     public List<String> supportedFileExtensions;
+
+    /**
+     * The groups the parameter is shown in, outermost first, as Cytoscape Web's {@code groups}.
+     * Malformed groups are read as none.
+     */
+    @JsonAdapter(MetadataLists.Groups.class)
+    public List<String> groups;
+
+    public List<String> columnTypeFilter() {
+        return columnTypeFilter == null ? List.of() : columnTypeFilter;
+    }
+
+    public List<String> groups() {
+        return groups == null ? List.of() : groups;
+    }
 }

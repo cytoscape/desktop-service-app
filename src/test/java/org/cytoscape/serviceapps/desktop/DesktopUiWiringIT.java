@@ -2,6 +2,7 @@ package org.cytoscape.serviceapps.desktop;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -46,8 +47,11 @@ class DesktopUiWiringIT {
                     "menu-root-apps",
                     "menu-multi-level",
                     "menu-root-tools-lowercase",
+                    "menu-root-layouts",
                     "menu-empty-path");
-    private static final List<String> WITHOUT_ENTRY =
+
+    /** Apps whose root isn't a Desktop menu: their entries go under Apps > Service Apps. */
+    private static final List<String> UNDER_SERVICE_APPS =
             List.of("menu-root-analysis", "menu-root-missing");
 
     private static final Duration WAIT = Duration.ofSeconds(60);
@@ -139,29 +143,38 @@ class DesktopUiWiringIT {
 
     @Test
     @Order(2)
-    void appsNamingADesktopMenuGetAnEntryAndOthersDoNot(
+    void appsNamingADesktopMenuGetAnEntryThereAndOthersUnderServiceApps(
             DesktopContainer desktop, FixtureServer fixture) throws IOException {
         for (String scenario : WITH_ENTRY) {
             install(desktop, fixture, scenario);
         }
-        for (String scenario : WITHOUT_ENTRY) {
+        for (String scenario : UNDER_SERVICE_APPS) {
             install(desktop, fixture, scenario);
         }
 
         for (String scenario : WITH_ENTRY) {
             awaitLog(desktop, registered(scenario, "enabled"));
         }
-        for (String scenario : WITHOUT_ENTRY) {
+        awaitLog(desktop, "Menu entry registered: Layout > Hello for '" + app("menu-root-layouts"));
+        for (String scenario : UNDER_SERVICE_APPS) {
+            String logs = awaitLog(desktop, registered(scenario, "enabled"));
             ServiceMetadata meta = TestNetworks.scenario(scenario);
-            awaitLog(
-                    desktop,
-                    "No menu entry for '"
-                            + meta.name
-                            + "': "
-                            + MenuPlacementResolver.whyNoPlacement(meta).orElseThrow());
+            assertTrue(
+                    logs.contains(
+                            "'"
+                                    + meta.name
+                                    + "' placed under Apps > Service Apps: "
+                                    + MenuPlacementResolver.resolve(meta)
+                                            .orElseThrow()
+                                            .fallbackReason()),
+                    logs);
         }
+        awaitLog(
+                desktop,
+                "Menu entry registered: Apps > Service Apps > Hello for '"
+                        + app("menu-root-analysis"));
         assertEquals(
-                WITH_ENTRY.size() + WITHOUT_ENTRY.size(),
+                WITH_ENTRY.size() + UNDER_SERVICE_APPS.size(),
                 DesktopTestSupport.list(desktop.cyrest()).size());
     }
 
@@ -199,7 +212,9 @@ class DesktopUiWiringIT {
         desktop.restart();
 
         String logs = sinceLastStart(desktop);
-        for (String scenario : WITH_ENTRY) {
+        List<String> placed = new ArrayList<>(WITH_ENTRY);
+        placed.addAll(UNDER_SERVICE_APPS);
+        for (String scenario : placed) {
             if (!scenario.equals("menu-root-apps")) {
                 assertTrue(logs.contains(registered(scenario, "enabled")), scenario + "\n" + logs);
             }

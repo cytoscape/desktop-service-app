@@ -17,6 +17,7 @@ import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNode;
 import org.cytoscape.model.subnetwork.CyRootNetwork;
 import org.cytoscape.model.subnetwork.CySubNetwork;
+import org.cytoscape.serviceapps.form.FormSpecBuilder;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
@@ -114,6 +115,35 @@ class RequestBuilderTest {
         assertEquals(new JsonObject(), built.request().data);
         assertEquals(Map.of("Weighted", "true"), built.request().parameters);
         assertEquals(SentIds.NONE, built.sent());
+    }
+
+    @Test
+    void inputTypeNoneSendsAnEmptyObjectEvenWithAnOpenNetwork() {
+        ServiceMetadata meta = columns("node", "all", "name");
+        meta.serviceInputDefinition.type = "none";
+
+        BuiltRequest built =
+                builder.build(meta, new ServiceInput(Map.of(), Map.of()), network, null);
+
+        assertEquals(new JsonObject(), built.request().data);
+        assertEquals(SentIds.NONE, built.sent());
+    }
+
+    @Test
+    void parametersThatShareANameAreSentUnderTheirGroupKeys() {
+        ServiceMetadata meta = TestNetworks.scenario("param-groups");
+        meta.serviceInputDefinition = null;
+        ServiceInput input =
+                new FormSpecBuilder()
+                        .build(meta, new JsonObject(), null)
+                        .initialValues()
+                        .toServiceInput();
+
+        Map<String, String> sent = builder.build(meta, input, null, null).request().parameters;
+
+        assertEquals("n", sent.get("Nodes/Gap"));
+        assertEquals("c", sent.get("Clusters/Gap"));
+        assertFalse(sent.containsKey("Gap"));
     }
 
     @Test

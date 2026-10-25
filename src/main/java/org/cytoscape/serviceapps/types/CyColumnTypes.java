@@ -111,6 +111,28 @@ public final class CyColumnTypes {
         return matches(filter, new ColumnType(column.getType(), column.getListElementType()));
     }
 
+    /**
+     * Whether a column type passes any of the filters, as Cytoscape Web reads a {@code
+     * columnTypeFilter} list. An empty list matches any type.
+     */
+    public static boolean matchesAny(List<String> filters, ColumnType columnType) {
+        return filters.isEmpty() || filters.stream().anyMatch(f -> matches(f, columnType));
+    }
+
+    public static boolean matchesAny(List<String> filters, CyColumn column) {
+        return matchesAny(filters, new ColumnType(column.getType(), column.getListElementType()));
+    }
+
+    /** An input column's single {@code dataType} as a filter list; empty when there is none. */
+    public static List<String> filters(String dataType) {
+        return dataType == null || dataType.isBlank() ? List.of() : List.of(dataType);
+    }
+
+    /** The filters for a message: "number", or "number or list_of_string". */
+    public static String describe(List<String> filters) {
+        return String.join(" or ", filters);
+    }
+
     private static Optional<String> scalarName(Class<?> type) {
         return SCALARS.entrySet().stream()
                 .filter(entry -> entry.getValue().equals(type))

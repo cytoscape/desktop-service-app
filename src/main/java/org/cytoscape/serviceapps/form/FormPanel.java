@@ -33,9 +33,12 @@ import org.cytoscape.serviceapps.ui.DesktopColors;
 /**
  * Draws a {@link FormSpec} as Swing controls and reads the entered values back.
  *
+ * <p>Parameters with {@code groups} are drawn inside titled sections, nested by group (see {@link
+ * ParameterGroups}).
+ *
  * <p>Each control is named for tests: {@code param:<key>} for a parameter, {@code column:<key>} for
  * an input column, and {@code error:<key>} for its inline validation message. Radio buttons are
- * named {@code param:<key>:<option>}.
+ * named {@code param:<key>:<option>}, and a group's section {@code group:<A/B>}.
  */
 public class FormPanel extends JPanel {
 
@@ -54,14 +57,12 @@ public class FormPanel extends JPanel {
         row = header(row);
         if (!spec.parameters().isEmpty()) {
             row = section("Parameters", row);
-            for (ControlSpec control : spec.parameters()) {
-                row = control(control, "param:", parameterReaders, row);
-            }
+            row = parameters(this, ParameterGroups.of(spec.parameters()), row);
         }
         if (!spec.inputColumns().isEmpty()) {
             row = section("Input columns", row);
             for (ControlSpec control : spec.inputColumns()) {
-                row = control(control, "column:", columnReaders, row);
+                row = control(this, control, "column:", columnReaders, row);
             }
         }
         JLabel note = new JLabel(UNDO_NOTE);
@@ -131,7 +132,27 @@ public class FormPanel extends JPanel {
         return row + 1;
     }
 
+    /** Adds a group's controls and subgroups to {@code target}, in order, from {@code row}. */
+    private int parameters(JPanel target, ParameterGroups.Group group, int row) {
+        for (ParameterGroups.Child child : group.children()) {
+            if (child instanceof ParameterGroups.Control control) {
+                row = control(target, control.spec(), "param:", parameterReaders, row);
+            } else if (child instanceof ParameterGroups.Group subgroup) {
+                JPanel section = new JPanel(new GridBagLayout());
+                section.setName("group:" + String.join("/", subgroup.path()));
+                section.setBorder(
+                        BorderFactory.createCompoundBorder(
+                                BorderFactory.createTitledBorder(subgroup.name()),
+                                BorderFactory.createEmptyBorder(2, 6, 4, 6)));
+                parameters(section, subgroup, 0);
+                target.add(section, constraints(0, row++, 2, 1, new Insets(6, 0, 4, 0)));
+            }
+        }
+        return row;
+    }
+
     private int control(
+            JPanel target,
             ControlSpec control,
             String prefix,
             Map<String, Supplier<List<String>>> readers,
@@ -140,13 +161,13 @@ public class FormPanel extends JPanel {
         label.setToolTipText(control.tooltip());
         JComponent component = component(control, prefix, readers);
         component.setToolTipText(control.tooltip());
-        add(label, constraints(0, row, 1, 0, new Insets(2, 0, 2, 8)));
-        add(component, constraints(1, row, 1, 1, new Insets(2, 0, 2, 0)));
+        target.add(label, constraints(0, row, 1, 0, new Insets(2, 0, 2, 8)));
+        target.add(component, constraints(1, row, 1, 1, new Insets(2, 0, 2, 0)));
         JLabel error = new JLabel();
         error.setName("error:" + control.key());
         error.setForeground(DesktopColors.error());
         errorLabels.put(control.key(), error);
-        add(error, constraints(1, row + 1, 1, 1, new Insets(0, 0, 4, 0)));
+        target.add(error, constraints(1, row + 1, 1, 1, new Insets(0, 0, 4, 0)));
         return row + 2;
     }
 
