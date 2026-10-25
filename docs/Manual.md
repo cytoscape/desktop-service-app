@@ -39,7 +39,7 @@ Installing checks that the service answers, and installs the app under the name 
 
 A service app can be run in two ways:
 
-- **Its menu entry.** A service app that names a Desktop menu gets an entry there, at the place it asks for, such as **Apps > Clustering > Community Detection**. The menus it can use are File, Edit, View, Select, Layout, Apps, Tools and Help; `Layouts` means Layout, as in Cytoscape Web. A service app that names no menu, or a menu Desktop doesn't have (such as Analysis), gets its entry under **Apps > Service Apps** instead, below Install and Manage, with the rest of its path kept: an app asking for **Analysis > Community > Detect** appears at **Apps > Service Apps > Community > Detect**.
+- **Its menu entry.** A service app that names a Desktop menu gets an entry there, at the place it asks for, such as **Apps > Clustering > Community Detection**. The menus it can use are File, Edit, View, Select, Layout, Apps, Tools and Help; `Layouts` means Layout, as in Cytoscape Web. A service app that names no menu, or a menu Desktop doesn't have (such as Analysis), gets its entry under **Apps > Service Apps** instead, below Manage and Install, with the rest of its path kept: an app asking for **Analysis > Community > Detect** appears at **Apps > Service Apps > Community > Detect**.
 - **A double click on its row** in the [Service Apps manager](#the-service-apps-manager).
 
 Both open the same dialog:

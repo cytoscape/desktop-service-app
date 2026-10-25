@@ -104,10 +104,10 @@ class MenuCleanupEndToEndTest {
 
     @Test
     void anAppUnderServiceAppsLeavesInstallAndManageInPlace() {
-        for (String title : List.of("Install", "Manage")) {
+        for (String title : List.of("Manage", "Install")) {
             CyAction action =
                     DesktopMenus.item(
-                            ManageServiceAppsAction.MENU, title, title.equals("Install") ? 1f : 2f);
+                            ManageServiceAppsAction.MENU, title, title.equals("Manage") ? 1f : 2f);
             onEdtAndWait(() -> desktop.swing().addAction(action));
         }
         ServiceMetadata meta = TestNetworks.scenario("menu-root-analysis");
@@ -116,8 +116,8 @@ class MenuCleanupEndToEndTest {
         DesktopMenus.flush();
         assertEquals(
                 List.of(
-                        "Apps > Service Apps > Install",
                         "Apps > Service Apps > Manage",
+                        "Apps > Service Apps > Install",
                         "Apps > Service Apps > Community > Hello"),
                 desktop.tree("Apps"));
 
@@ -125,7 +125,7 @@ class MenuCleanupEndToEndTest {
         DesktopMenus.flush();
 
         assertEquals(
-                List.of("Apps > Service Apps > Install", "Apps > Service Apps > Manage"),
+                List.of("Apps > Service Apps > Manage", "Apps > Service Apps > Install"),
                 desktop.tree("Apps"));
     }
 
