@@ -3,11 +3,13 @@ package org.cytoscape.serviceapps.menu;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -21,6 +23,7 @@ import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
 import org.cytoscape.serviceapps.client.ServiceAppException;
 import org.cytoscape.serviceapps.cx.Cx2Support;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.placement.MenuPlacement;
 import org.cytoscape.serviceapps.placement.MenuPlacementResolver;
@@ -29,6 +32,7 @@ import org.cytoscape.serviceapps.registry.RegistryEvent;
 import org.cytoscape.serviceapps.registry.RegistryListener;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.run.ActiveRuns;
+import org.cytoscape.serviceapps.ui.PlainText;
 import org.cytoscape.work.TaskFactory;
 
 import static org.cytoscape.work.ServiceProperties.ENABLE_FOR;
@@ -68,7 +72,7 @@ public class ServiceAppLifecycle implements RegistryListener {
     private final ExecutorService refresher;
 
     private final Map<String, Entry> entries = new HashMap<>();
-    private final Map<String, String> noEntry = new HashMap<>();
+    private final Set<String> noEntry = new HashSet<>();
     private volatile boolean stopped;
 
     public ServiceAppLifecycle(
@@ -195,9 +199,8 @@ public class ServiceAppLifecycle implements RegistryListener {
         Optional<MenuPlacement> placement = MenuPlacementResolver.resolve(meta.get());
         if (placement.isEmpty()) {
             remove(name);
-            String reason = MenuPlacementResolver.whyNoPlacement(meta.get()).orElse("no menu");
-            if (!reason.equals(noEntry.put(name, reason))) {
-                LOGGER.info("No menu entry for '{}': {}", name, reason);
+            if (noEntry.add(name)) {
+                LOGGER.info("No menu entry for '{}': its menu entry has no title", name);
             }
             return;
         }
@@ -220,6 +223,22 @@ public class ServiceAppLifecycle implements RegistryListener {
                 placement.get().describe(),
                 name,
                 disabled.map(reason -> "disabled: " + reason).orElse("enabled"));
+        List<String> shared = ParameterKeys.duplicates(meta.get().parameters());
+        if (!shared.isEmpty()) {
+            LOGGER.warn(
+                    "'{}' has parameters with the same name in the same groups; only the last of"
+                            + " each is used: {}",
+                    name,
+                    String.join(", ", shared));
+        }
+        if (placement.get().fallbackReason() != null) {
+            LOGGER.warn(
+                    "'{}' placed under {} > {}: {}",
+                    name,
+                    MenuPlacementResolver.FALLBACK_MENU,
+                    MenuPlacementResolver.FALLBACK_SUBMENU,
+                    placement.get().fallbackReason());
+        }
     }
 
     private Optional<String> disabledReason(InstalledServiceApp app, ServiceMetadata meta) {
@@ -243,7 +262,8 @@ public class ServiceAppLifecycle implements RegistryListener {
         } else {
             properties.setProperty(ENABLE_FOR, RunPrecondition.enableFor(meta));
         }
-        properties.setProperty(TOOLTIP, tooltip);
+        // Desktop's menu item would read a name starting with <html> as HTML.
+        properties.setProperty(TOOLTIP, PlainText.literal(tooltip));
         return properties;
     }
 
@@ -275,6 +295,6 @@ public class ServiceAppLifecycle implements RegistryListener {
 
     /** Apps that get no menu entry, for tests. */
     synchronized List<String> withoutEntry() {
-        return new ArrayList<>(noEntry.keySet());
+        return new ArrayList<>(noEntry);
     }
 }

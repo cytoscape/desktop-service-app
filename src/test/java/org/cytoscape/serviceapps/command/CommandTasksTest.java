@@ -19,9 +19,12 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.cytoscape.serviceapps.app.AppSupport;
 import org.cytoscape.serviceapps.client.FakeTransport;
 import org.cytoscape.serviceapps.client.ServiceAppClient;
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
+import org.cytoscape.serviceapps.cx.Cx2Support;
+import org.cytoscape.serviceapps.model.Parameter;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.registry.InstalledServiceApp;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
@@ -35,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class CommandTasksTest {
 
@@ -43,6 +47,7 @@ class CommandTasksTest {
     @TempDir Path dir;
 
     private final TaskMonitor monitor = mock(TaskMonitor.class);
+    private final Cx2Support cx2 = mock(Cx2Support.class);
     private final FakeTransport transport = new FakeTransport();
     private final ServiceAppClientFactory clients = url -> new ServiceAppClient(url, transport);
     private ServiceAppRegistry registry;
@@ -306,7 +311,7 @@ class CommandTasksTest {
         registry.install("b", "1.0", "https://b.example", meta("b", "1.0"));
         registry.install("a", "2.0", "https://a.example", meta("a", "2.0"));
         registry.setReachable("b", false);
-        ListCommandTask task = new ListCommandTask(registry);
+        ListCommandTask task = new ListCommandTask(registry, cx2);
 
         task.run(monitor);
 
@@ -322,8 +327,52 @@ class CommandTasksTest {
     }
 
     @Test
+    void listGivesEachAppsDescriptionAndWhetherDesktopCanRunIt() {
+        ServiceMetadata described = meta("a", "1.0");
+        described.description = "  Finds communities\n  and adds   a cluster column ";
+        registry.install("a", "1.0", "https://a.example", described);
+        ServiceMetadata unsupported = meta("b", "1.0");
+        Parameter uuid = new Parameter();
+        uuid.displayName = "Network";
+        uuid.type = Parameter.NDEX_UUID;
+        unsupported.parameters = List.of(uuid);
+        registry.install("b", "1.0", "https://b.example", unsupported);
+        when(cx2.available()).thenReturn(true);
+        ListCommandTask task = new ListCommandTask(registry, cx2);
+
+        task.run(monitor);
+
+        JsonArray apps = JsonParser.parseString(task.getResults(String.class)).getAsJsonArray();
+        JsonObject a = apps.get(0).getAsJsonObject();
+        assertEquals(
+                "Finds communities and adds a cluster column", a.get("description").getAsString());
+        assertTrue(a.get("unsupportedReason").isJsonNull(), "present, and null when it can run");
+        JsonObject b = apps.get(1).getAsJsonObject();
+        assertEquals("", b.get("description").getAsString());
+        assertEquals(
+                AppSupport.unsupportedReason(unsupported, true).orElseThrow(),
+                b.get("unsupportedReason").getAsString());
+    }
+
+    @Test
+    void listsExampleHasTheShapeOfARealReply() {
+        registry.install("a", "1.0", "https://a.example", meta("a", "1.0"));
+        ListCommandTask task = new ListCommandTask(registry, cx2);
+        task.run(monitor);
+        JsonObject real =
+                JsonParser.parseString(task.getResults(String.class))
+                        .getAsJsonArray()
+                        .get(0)
+                        .getAsJsonObject();
+
+        for (var entry : JsonParser.parseString(ListCommandTask.EXAMPLE_JSON).getAsJsonArray()) {
+            assertEquals(real.keySet(), entry.getAsJsonObject().keySet());
+        }
+    }
+
+    @Test
     void listWithNothingInstalledIsAnEmptyArray() {
-        ListCommandTask task = new ListCommandTask(registry);
+        ListCommandTask task = new ListCommandTask(registry, cx2);
 
         task.run(monitor);
 
@@ -406,7 +455,7 @@ class CommandTasksTest {
 
     @Test
     void resultsAreNullBeforeRunningAndForOtherTypes() {
-        ListCommandTask task = new ListCommandTask(registry);
+        ListCommandTask task = new ListCommandTask(registry, cx2);
         assertNull(task.getResults(String.class));
         task.run(monitor);
         assertNull(task.getResults(Integer.class));

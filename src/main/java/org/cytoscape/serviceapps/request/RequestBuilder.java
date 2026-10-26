@@ -28,7 +28,7 @@ import org.cytoscape.view.model.CyNetworkView;
  * {"algorithm": name, "data": ..., "parameters": {...}}}, with parameter values as text.
  *
  * <ul>
- *   <li>No input type: {@code data} is {@code {}}.
+ *   <li>No input type, or {@code none}: {@code data} is {@code {}}.
  *   <li>Node or edge input: the chosen columns as a table, rows keyed by element ID.
  *   <li>Network input, model {@code network}: CX2 from CX Support. A selection is written from a
  *       temporary, unregistered subnetwork with the selected edges' endpoints, removed afterwards;

@@ -13,6 +13,7 @@ import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyTable;
 import org.cytoscape.serviceapps.app.AppSupport;
 import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.types.CyColumnTypes;
@@ -36,8 +37,13 @@ public class FormSpecBuilder {
         FormValues last = FormValues.fromJson(lastValues);
 
         List<ControlSpec> parameters = new ArrayList<>();
-        for (Parameter parameter : meta.parameters()) {
-            ControlSpec control = parameter(parameter, target, last);
+        List<String> keys = ParameterKeys.of(meta.parameters());
+        for (int i = 0; i < keys.size(); i++) {
+            // Of parameters that still share a key, only the last is used, as in Cytoscape Web.
+            if (keys.lastIndexOf(keys.get(i)) != i) {
+                continue;
+            }
+            ControlSpec control = parameter(meta.parameters().get(i), keys.get(i), target, last);
             if (control != null) {
                 parameters.add(control);
             }
@@ -70,11 +76,13 @@ public class FormSpecBuilder {
                 autoColumns);
     }
 
-    private ControlSpec parameter(Parameter parameter, CyNetwork target, FormValues last) {
+    private ControlSpec parameter(
+            Parameter parameter, String key, CyNetwork target, FormValues last) {
         if (parameter.displayName == null || parameter.type == null) {
             return null;
         }
-        String key = parameter.displayName;
+        String label = parameter.displayName;
+        List<String> groups = parameter.groups();
         String tooltip = blankToNull(parameter.description);
         String remembered = first(last.parameters().get(key));
         List<String> values = parameter.valueList == null ? List.of() : parameter.valueList;
@@ -98,13 +106,14 @@ public class FormSpecBuilder {
                     return new ControlSpec(
                             key,
                             ControlKind.TEXT,
-                            key,
+                            label,
                             tooltip,
                             List.of(),
                             List.of(value),
                             false,
                             rule,
-                            null);
+                            null,
+                            groups);
                 }
             case Parameter.DROP_DOWN:
             case Parameter.RADIO:
@@ -113,13 +122,14 @@ public class FormSpecBuilder {
                         Parameter.DROP_DOWN.equals(parameter.type)
                                 ? ControlKind.DROP_DOWN
                                 : ControlKind.RADIO,
-                        key,
+                        label,
                         tooltip,
                         values,
                         choose(values, remembered, parameter.defaultValue),
                         false,
                         null,
-                        key + " has no choices");
+                        label + " has no choices",
+                        groups);
             case Parameter.CHECK_BOX:
                 {
                     String value =
@@ -133,24 +143,25 @@ public class FormSpecBuilder {
                     return new ControlSpec(
                             key,
                             ControlKind.CHECK_BOX,
-                            key,
+                            label,
                             tooltip,
                             List.of(),
                             List.of(value),
                             false,
                             null,
-                            null);
+                            null,
+                            groups);
                 }
             case Parameter.NODE_COLUMN:
             case Parameter.EDGE_COLUMN:
                 {
                     boolean nodes = Parameter.NODE_COLUMN.equals(parameter.type);
                     CyTable table = table(target, nodes);
-                    List<String> columns = columnNames(table, parameter.columnTypeFilter);
+                    List<String> columns = columnNames(table, parameter.columnTypeFilter());
                     return new ControlSpec(
                             key,
                             nodes ? ControlKind.NODE_COLUMN : ControlKind.EDGE_COLUMN,
-                            key,
+                            label,
                             tooltip,
                             columns,
                             choose(columns, remembered, parameter.defaultValue),
@@ -159,8 +170,9 @@ public class FormSpecBuilder {
                             noColumnsMessage(
                                     table,
                                     nodes ? "node" : "edge",
-                                    parameter.columnTypeFilter,
-                                    key));
+                                    parameter.columnTypeFilter(),
+                                    label),
+                            groups);
                 }
             default:
                 // file, accessToken, ndexUUID and unknown types get no control; AppSupport keeps
@@ -174,7 +186,7 @@ public class FormSpecBuilder {
             CyTable table,
             String type,
             FormValues last) {
-        List<String> columns = columnNames(table, column.dataType);
+        List<String> columns = columnNames(table, CyColumnTypes.filters(column.dataType));
         boolean multi = Boolean.TRUE.equals(column.allowMultipleSelection);
         List<String> remembered = last.inputColumns().get(column.name);
         List<String> selected;
@@ -197,7 +209,8 @@ public class FormSpecBuilder {
                 selected,
                 multi,
                 null,
-                noColumnsMessage(table, type, column.dataType, column.name));
+                noColumnsMessage(table, type, CyColumnTypes.filters(column.dataType), column.name),
+                List.of());
     }
 
     private static List<String> choose(List<String> options, String remembered, String fallback) {
@@ -210,15 +223,15 @@ public class FormSpecBuilder {
         return List.of();
     }
 
-    /** Column names of {@code table} that pass {@code filter}, sorted, without {@code SUID}. */
-    static List<String> columnNames(CyTable table, String filter) {
+    /** Column names of {@code table} that pass any of {@code filters}, sorted, without SUID. */
+    static List<String> columnNames(CyTable table, List<String> filters) {
         if (table == null) {
             return List.of();
         }
         List<String> names = new ArrayList<>();
         for (CyColumn column : table.getColumns()) {
             if (!CyIdentifiable.SUID.equals(column.getName())
-                    && CyColumnTypes.matches(filter, column)) {
+                    && CyColumnTypes.matchesAny(filters, column)) {
                 names.add(column.getName());
             }
         }
@@ -235,11 +248,11 @@ public class FormSpecBuilder {
 
     /** The message shown when a column picker has nothing to offer. */
     private static String noColumnsMessage(
-            CyTable table, String elements, String filter, String label) {
+            CyTable table, String elements, List<String> filters, String label) {
         if (table == null) {
             return label + " needs a network: open one first";
         }
-        String type = filter == null || filter.isBlank() ? "" : " of type " + filter;
+        String type = filters.isEmpty() ? "" : " of type " + CyColumnTypes.describe(filters);
         return "The current network has no " + elements + " column" + type + " for " + label;
     }
 

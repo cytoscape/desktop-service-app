@@ -85,6 +85,81 @@ class ModelParsingTest {
         assertTrue(meta.cyWebActions().isEmpty());
     }
 
+    private static Parameter parameter(String json) {
+        return Json.parse("{\"name\":\"x\",\"parameters\":[" + json + "]}", ServiceMetadata.class)
+                .parameters()
+                .get(0);
+    }
+
+    @Test
+    void readsAColumnTypeFilterGivenAsAStringOrAList() {
+        assertEquals(
+                List.of("number"),
+                parameter("{\"displayName\":\"a\",\"columnTypeFilter\":\"number\"}")
+                        .columnTypeFilter());
+        assertEquals(
+                List.of("wholenumber", "list_of_string"),
+                parameter(
+                                "{\"displayName\":\"a\",\"columnTypeFilter\":"
+                                        + "[\"wholenumber\",\"list_of_string\"]}")
+                        .columnTypeFilter());
+        for (String any : List.of("null", "\"\"", "[]", "[\" \"]")) {
+            assertEquals(
+                    List.of(),
+                    parameter("{\"displayName\":\"a\",\"columnTypeFilter\":" + any + "}")
+                            .columnTypeFilter(),
+                    any);
+        }
+        assertEquals(List.of(), parameter("{\"displayName\":\"a\"}").columnTypeFilter());
+    }
+
+    @Test
+    void aColumnTypeFilterThatIsNeitherAStringNorAListOfStringsIsRejected() {
+        for (String bad : List.of("1", "true", "{\"a\":1}", "[\"number\",2]", "[[\"number\"]]")) {
+            assertThrows(
+                    JsonParseException.class,
+                    () -> parameter("{\"displayName\":\"a\",\"columnTypeFilter\":" + bad + "}"),
+                    bad);
+        }
+    }
+
+    @Test
+    void aColumnTypeFilterIsWrittenBackInTheFormItCameIn() {
+        for (String filter : List.of("\"number\"", "[\"number\",\"boolean\"]")) {
+            Parameter read =
+                    parameter("{\"displayName\":\"a\",\"columnTypeFilter\":" + filter + "}");
+            assertEquals(
+                    JsonParser.parseString(filter),
+                    Json.tree(read).getAsJsonObject().get("columnTypeFilter"));
+            assertEquals(
+                    read.columnTypeFilter(),
+                    Json.GSON.fromJson(Json.tree(read), Parameter.class).columnTypeFilter());
+        }
+    }
+
+    @Test
+    void readsGroupsAndTreatsMalformedOnesAsNone() {
+        assertEquals(
+                List.of("Company", "Department"),
+                parameter("{\"displayName\":\"a\",\"groups\":[\"Company\",\"Department\"]}")
+                        .groups());
+        for (String malformed :
+                List.of(
+                        "null",
+                        "\"Company\"",
+                        "{}",
+                        "[\"Company\",1]",
+                        "[\"Company\",\" \"]",
+                        "[]")) {
+            Parameter read = parameter("{\"displayName\":\"a\",\"groups\":" + malformed + "}");
+            assertEquals(List.of(), read.groups(), malformed);
+            assertEquals(
+                    List.of(),
+                    Json.GSON.fromJson(Json.tree(read), Parameter.class).groups(),
+                    "and stays none when stored: " + malformed);
+        }
+    }
+
     @Test
     void readsTaskResultActionsInOrder() {
         TaskStatus status =

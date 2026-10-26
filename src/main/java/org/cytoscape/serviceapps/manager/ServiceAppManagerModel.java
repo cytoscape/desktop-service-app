@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import org.cytoscape.serviceapps.client.ServiceAppStatusChecker;
 import org.cytoscape.serviceapps.launch.ServiceAppLauncher;
+import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.registry.InstalledServiceApp;
 import org.cytoscape.serviceapps.registry.RegistryEvent;
 import org.cytoscape.serviceapps.registry.RegistryListener;
@@ -52,6 +54,8 @@ public class ServiceAppManagerModel {
     /**
      * One row.
      *
+     * @param description the app's description from its metadata; blank when it has none
+     * @param author the app's author from its metadata; blank when it has none
      * @param invokeDisabledReason why Desktop can't run the app, or null when it can
      * @param statusDetail what the status check found, for the tooltip; null while checking
      */
@@ -59,6 +63,8 @@ public class ServiceAppManagerModel {
             String name,
             String version,
             String url,
+            String description,
+            String author,
             Status status,
             String statusDetail,
             String invokeDisabledReason) {
@@ -124,11 +130,14 @@ public class ServiceAppManagerModel {
         List<Row> rows = new ArrayList<>();
         for (InstalledServiceApp app : registry.list()) {
             Checked checked = statuses.getOrDefault(app.name(), new Checked(Status.CHECKING, null));
+            Optional<ServiceMetadata> meta = registry.getMeta(app.name());
             rows.add(
                     new Row(
                             app.name(),
                             app.version(),
                             app.url(),
+                            meta.map(m -> ServiceMetadata.oneLine(m.description)).orElse(""),
+                            meta.map(m -> ServiceMetadata.oneLine(m.author)).orElse(""),
                             checked.status(),
                             checked.detail(),
                             launcher.unavailableReason(app.name()).orElse(null)));

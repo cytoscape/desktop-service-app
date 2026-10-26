@@ -3,6 +3,7 @@ package org.cytoscape.serviceapps.form;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -127,7 +128,7 @@ class FormSpecBuilderTest {
             List<String> expected = new ArrayList<>();
             for (CyColumn column : table.getColumns()) {
                 if (!column.getName().equals("SUID")
-                        && CyColumnTypes.matches(filter.isEmpty() ? null : filter, column)) {
+                        && CyColumnTypes.matchesAny(CyColumnTypes.filters(filter), column)) {
                     expected.add(column.getName());
                 }
             }
@@ -253,6 +254,100 @@ class FormSpecBuilderTest {
         FormValues entered = new FormValues(Map.of("Weighted", List.of("false")), Map.of());
         assertEquals("false", entered.toServiceInput().parameters().get("Weighted"));
         assertEquals(entered, FormValues.fromJson(entered.toJson()));
+    }
+
+    @Test
+    void aColumnPickerWithAListOfFiltersListsColumnsOfAnyOfThem() {
+        ControlSpec picker = only(build("param-column-filter-list"));
+
+        assertTrue(
+                picker.options().containsAll(List.of("c_integer", "c_list_of_string", "c_long")),
+                picker.options().toString());
+        for (String option : picker.options()) {
+            CyColumn column = network.getDefaultNodeTable().getColumn(option);
+            assertTrue(
+                    column.getType() == Long.class
+                            || column.getType() == Integer.class
+                            || column.getListElementType() == String.class,
+                    option + " is " + column.getType());
+        }
+        ControlSpec empty =
+                only(
+                        builder.build(
+                                TestNetworks.scenario("param-column-filter-list"),
+                                new JsonObject(),
+                                TestNetworks.empty()));
+        assertEquals(
+                Optional.of(
+                        "The current network has no node column of type wholenumber or list_of_string"
+                                + " for Score"),
+                empty.validate(List.of()));
+    }
+
+    @Test
+    void groupedParametersKeepTheirLabelsAndSharedNamesGetGroupKeys() {
+        FormSpec spec = build("param-groups");
+
+        assertEquals(
+                List.of(
+                        "Last name",
+                        "First name",
+                        "Top level",
+                        "Office name",
+                        "Nodes/Gap",
+                        "Clusters/Gap"),
+                spec.parameters().stream().map(ControlSpec::key).toList());
+        ControlSpec nodesGap = spec.parameters().get(4);
+        ControlSpec clustersGap = spec.parameters().get(5);
+        assertEquals("Gap", nodesGap.label());
+        assertEquals(List.of("Nodes"), nodesGap.groups());
+        assertEquals(List.of("n"), nodesGap.selected());
+        assertEquals(List.of("c"), clustersGap.selected());
+        assertEquals(
+                List.of("Company", "Department", "Office", "Identity"),
+                spec.parameters().get(1).groups());
+        assertEquals(List.of(), spec.parameters().get(2).groups());
+        assertEquals(
+                Map.of(
+                        "Last name", "",
+                        "First name", "",
+                        "Top level", "",
+                        "Office name", "",
+                        "Nodes/Gap", "n",
+                        "Clusters/Gap", "c"),
+                spec.initialValues().toServiceInput().parameters());
+
+        JsonObject remembered =
+                JsonParser.parseString(
+                                "{\"parameters\":{\"Clusters/Gap\":\"edited\",\"Gap\":\"x\"}}")
+                        .getAsJsonObject();
+        FormSpec again = builder.build(TestNetworks.scenario("param-groups"), remembered, network);
+        assertEquals(List.of("n"), again.parameters().get(4).selected());
+        assertEquals(List.of("edited"), again.parameters().get(5).selected());
+    }
+
+    @Test
+    void ofParametersThatStillShareAKeyOnlyTheLastIsUsed() {
+        ServiceMetadata meta = TestNetworks.scenario("param-groups");
+        meta.parameters.get(5).groups = List.of("Nodes");
+        meta.parameters.get(5).defaultValue = "last";
+
+        FormSpec spec = builder.build(meta, new JsonObject(), network);
+
+        assertEquals(
+                1, spec.parameters().stream().filter(c -> c.key().equals("Nodes/Gap")).count());
+        assertEquals(List.of("last"), spec.parameters().get(4).selected());
+    }
+
+    @Test
+    void anAppWithInputTypeNoneGetsNoInputColumns() {
+        ServiceMetadata meta = TestNetworks.scenario("input-columns");
+        meta.serviceInputDefinition.type = "none";
+
+        FormSpec spec = builder.build(meta, new JsonObject(), network);
+
+        assertTrue(spec.inputColumns().isEmpty());
+        assertTrue(spec.autoColumns().isEmpty());
     }
 
     @Test

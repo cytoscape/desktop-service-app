@@ -6,10 +6,10 @@ import java.util.Optional;
 /**
  * One control in a service app's dialog, described without any Swing.
  *
- * @param key the parameter's {@code displayName}, or the input column's {@code name}; the value is
- *     sent under this key
+ * @param key the parameter's key ({@link org.cytoscape.serviceapps.model.ParameterKeys}), or the
+ *     input column's {@code name}; the value is sent under this key
  * @param kind which control to draw
- * @param label the text beside the control
+ * @param label the text beside the control: the parameter's {@code displayName}
  * @param tooltip the hint shown on hover, or null
  * @param options the choices, for every kind except text and checkbox
  * @param selected the initial value(s): one for single-value controls, any number for a
@@ -17,6 +17,7 @@ import java.util.Optional;
  * @param multiSelect whether several options may be chosen (input columns only)
  * @param rule the validation rules for a text control, or null
  * @param noOptionsMessage shown when a choice is required but there are no options, or null
+ * @param groups the groups the control is shown in, outermost first; empty for none
  */
 public record ControlSpec(
         String key,
@@ -27,11 +28,13 @@ public record ControlSpec(
         List<String> selected,
         boolean multiSelect,
         TextRule rule,
-        String noOptionsMessage) {
+        String noOptionsMessage,
+        List<String> groups) {
 
     public ControlSpec {
         options = List.copyOf(options);
         selected = List.copyOf(selected);
+        groups = List.copyOf(groups);
     }
 
     /** Why {@code values} is not a valid answer for this control, or empty if it is. */

@@ -17,6 +17,7 @@ import org.cytoscape.serviceapps.form.ControlSpec;
 import org.cytoscape.serviceapps.form.FormSpec;
 import org.cytoscape.serviceapps.form.FormSpecBuilder;
 import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
@@ -67,15 +68,17 @@ class ServiceInputSchemaTest {
         assertFalse(parameters.get("additionalProperties").getAsBoolean());
 
         List<String> required = strings(parameters.get("required"));
-        for (Parameter parameter : meta.parameters()) {
-            JsonObject property =
-                    parameters.getAsJsonObject("properties").getAsJsonObject(parameter.displayName);
+        List<String> parameterKeys = ParameterKeys.of(meta.parameters());
+        for (int i = 0; i < parameterKeys.size(); i++) {
+            Parameter parameter = meta.parameters().get(i);
+            String key = parameterKeys.get(i);
+            JsonObject property = parameters.getAsJsonObject("properties").getAsJsonObject(key);
             if (Parameter.UNSUPPORTED_TYPES.contains(parameter.type)) {
-                assertNull(property, "unsupported types are left out: " + parameter.displayName);
+                assertNull(property, "unsupported types are left out: " + key);
                 continue;
             }
-            assertNotNull(property, parameter.displayName);
-            assertParameter(parameter, property, required.contains(parameter.displayName));
+            assertNotNull(property, key);
+            assertParameter(parameter, property, required.contains(key));
         }
 
         List<String> requiredColumns = strings(columns.get("required"));
@@ -166,9 +169,10 @@ class ServiceInputSchemaTest {
                 String elements =
                         Parameter.NODE_COLUMN.equals(p.type) ? "a node column" : "an edge column";
                 assertTrue(description.contains(elements), description);
-                if (p.columnTypeFilter != null && !p.columnTypeFilter.isBlank()) {
+                if (!p.columnTypeFilter().isEmpty()) {
                     assertTrue(
-                            description.contains("whose type is " + p.columnTypeFilter),
+                            description.contains(
+                                    "whose type is " + String.join(" or ", p.columnTypeFilter())),
                             description);
                 }
                 assertFalse(property.has("enum"), "column names belong to the target network");
@@ -201,6 +205,52 @@ class ServiceInputSchemaTest {
                     multi ? value.getAsJsonArray().get(0).getAsString() : value.getAsString());
         }
         assertEquals(!hasDefault, required, "required");
+    }
+
+    @Test
+    void parametersThatShareANameEachGetTheirOwnPropertySayingTheirGroup() {
+        JsonObject properties =
+                section(ServiceInputSchema.of(TestNetworks.scenario("param-groups")), "parameters")
+                        .getAsJsonObject("properties");
+
+        JsonObject nodes = properties.getAsJsonObject("Nodes/Gap");
+        JsonObject clusters = properties.getAsJsonObject("Clusters/Gap");
+        assertEquals("n", nodes.get("default").getAsString());
+        assertEquals("c", clusters.get("default").getAsString());
+        assertFalse(properties.has("Gap"));
+        assertTrue(
+                nodes.get("description").getAsString().endsWith("In group: Nodes."),
+                nodes.toString());
+        assertTrue(
+                properties
+                        .getAsJsonObject("First name")
+                        .get("description")
+                        .getAsString()
+                        .endsWith("In group: Company > Department > Office > Identity."));
+        assertFalse(
+                properties
+                        .getAsJsonObject("Top level")
+                        .get("description")
+                        .getAsString()
+                        .contains("In group"));
+    }
+
+    @Test
+    void aListOfColumnTypesIsNamedInTheHint() {
+        JsonObject score =
+                section(
+                                ServiceInputSchema.of(
+                                        TestNetworks.scenario("param-column-filter-list")),
+                                "parameters")
+                        .getAsJsonObject("properties")
+                        .getAsJsonObject("Score");
+
+        assertTrue(
+                score.get("description")
+                        .getAsString()
+                        .endsWith(
+                                "a node column of the target network whose type is wholenumber or list_of_string."),
+                score.toString());
     }
 
     @Test

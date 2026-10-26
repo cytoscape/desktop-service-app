@@ -74,7 +74,7 @@ class ScenarioCatalogTest {
         for (String scenario : List.of("param-node-column-filters", "param-edge-column-filters")) {
             Set<String> filters =
                     parametersOf(scenario).stream()
-                            .map(p -> p.columnTypeFilter == null ? "" : p.columnTypeFilter)
+                            .map(p -> String.join(",", p.columnTypeFilter()))
                             .collect(Collectors.toSet());
             assertEquals(Set.copyOf(ScenarioCatalog.COLUMN_TYPE_FILTERS), filters, scenario);
         }
@@ -103,6 +103,7 @@ class ScenarioCatalogTest {
                         "",
                         "Apps",
                         "Layout",
+                        "Layouts",
                         "Tools",
                         "tools",
                         "Edit",

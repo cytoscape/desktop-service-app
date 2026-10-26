@@ -1,21 +1,28 @@
 package org.cytoscape.serviceapps.form;
 
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.GraphicsEnvironment;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.TitledBorder;
+import javax.swing.plaf.basic.BasicHTML;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.model.CyNetwork;
+import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.work.Tunable;
 import org.cytoscape.work.swing.GUITunableHandler;
@@ -55,11 +64,13 @@ class ServiceAppFormHandlerTest {
     }
 
     private ServiceAppFormHandler handler(String scenario) throws Exception {
+        return handler(TestNetworks.scenario(scenario));
+    }
+
+    private ServiceAppFormHandler handler(ServiceMetadata meta) throws Exception {
         Holder holder = new Holder();
         holder.form =
-                new ServiceAppForm(
-                        new FormSpecBuilder()
-                                .build(TestNetworks.scenario(scenario), new JsonObject(), network));
+                new ServiceAppForm(new FormSpecBuilder().build(meta, new JsonObject(), network));
         Field field = Holder.class.getField("form");
         GUITunableHandler created =
                 onEdt(
@@ -95,13 +106,105 @@ class ServiceAppFormHandlerTest {
     }
 
     @Test
+    void metadataIsShownAsTextNeverAsHtml() throws Exception {
+        String payload = "<html><img src='http://127.0.0.1:9/x.png'></html>";
+        ServiceMetadata meta = TestNetworks.scenario("param-radio");
+        Parameter radio = meta.parameters.get(0);
+        radio.displayName = payload;
+        radio.description = payload;
+        radio.valueList = List.of(payload, "down");
+        Parameter choice = TestNetworks.scenario("param-dropdown").parameters.get(0);
+        choice.valueList = List.of(payload, "leiden");
+        choice.defaultValue = payload;
+        Parameter number = TestNetworks.scenario("param-text-number").parameters.get(0);
+        number.defaultValue = "not a number";
+        number.validationHelp = payload;
+        meta.parameters = List.of(radio, choice, number);
+        FormPanel panel = handler(meta).formPanel();
+
+        List<JLabel> labels = labels(panel, payload);
+        assertEquals(2, labels.size(), "the radio's label and the number's error");
+        for (JLabel label : labels) {
+            assertNull(label.getClientProperty(BasicHTML.propertyKey));
+        }
+        JRadioButton option = (JRadioButton) panel.find("param:" + payload + ":" + payload);
+        assertEquals(payload, option.getText());
+        assertNull(option.getClientProperty(BasicHTML.propertyKey));
+        String tooltip = ((JComponent) panel.find("param:" + payload)).getToolTipText();
+        assertEquals(
+                "<html>&lt;html&gt;&lt;img src='http://127.0.0.1:9/x.png'&gt;&lt;/html&gt;</html>",
+                tooltip);
+
+        @SuppressWarnings("unchecked")
+        JComboBox<String> combo = (JComboBox<String>) panel.find("param:Method");
+        Component item =
+                onEdt(
+                        () ->
+                                combo.getRenderer()
+                                        .getListCellRendererComponent(
+                                                new JList<>(), payload, 0, false, false));
+        assertEquals(payload, ((JLabel) item).getText());
+        assertNull(((JComponent) item).getClientProperty(BasicHTML.propertyKey));
+    }
+
+    /** Every label in {@code container} showing exactly {@code text}. */
+    private static List<JLabel> labels(Container container, String text) {
+        List<JLabel> found = new ArrayList<>();
+        for (Component child : container.getComponents()) {
+            if (child instanceof JLabel label && text.equals(label.getText())) {
+                found.add(label);
+            }
+            if (child instanceof Container nested) {
+                found.addAll(labels(nested, text));
+            }
+        }
+        return found;
+    }
+
+    @Test
+    void groupedParametersAreDrawnInNestedTitledSections() throws Exception {
+        FormPanel panel = handler("param-groups").formPanel();
+
+        JPanel company = assertInstanceOf(JPanel.class, panel.find("group:Company"));
+        JPanel office =
+                assertInstanceOf(JPanel.class, panel.find("group:Company/Department/Office"));
+        JPanel identity =
+                assertInstanceOf(
+                        JPanel.class, panel.find("group:Company/Department/Office/Identity"));
+        assertEquals("Company", title(company));
+        assertEquals("Office", title(office));
+        assertTrue(SwingUtilities.isDescendingFrom(identity, office));
+        assertTrue(SwingUtilities.isDescendingFrom(panel.find("param:Office name"), office));
+        assertTrue(SwingUtilities.isDescendingFrom(panel.find("param:First name"), identity));
+        assertFalse(SwingUtilities.isDescendingFrom(panel.find("param:Top level"), company));
+        assertTrue(
+                SwingUtilities.isDescendingFrom(
+                        panel.find("param:Nodes/Gap"), panel.find("group:Nodes")));
+        assertTrue(
+                SwingUtilities.isDescendingFrom(
+                        panel.find("param:Clusters/Gap"), panel.find("group:Clusters")));
+        assertTrue(
+                ((JComponent) panel.find("param:Top level")).getParent() == panel,
+                "an ungrouped parameter is drawn as before");
+
+        Map<String, List<String>> values = onEdt(() -> panel.values().parameters());
+        assertEquals(List.of("n"), values.get("Nodes/Gap"));
+        assertEquals(List.of("c"), values.get("Clusters/Gap"));
+    }
+
+    private static String title(JPanel section) {
+        CompoundBorder border = assertInstanceOf(CompoundBorder.class, section.getBorder());
+        return assertInstanceOf(TitledBorder.class, border.getOutsideBorder()).getTitle();
+    }
+
+    @Test
     void textIsATextFieldWithTheDefaultAndInlineValidation() throws Exception {
         ServiceAppFormHandler handler = handler("param-text-string");
         FormPanel panel = handler.formPanel();
 
         JTextField field = assertInstanceOf(JTextField.class, panel.find("param:Algorithm"));
         assertEquals("louvain", field.getText());
-        assertEquals("Help text for Algorithm", field.getToolTipText());
+        assertEquals("<html>Help text for Algorithm</html>", field.getToolTipText());
         JLabel error = (JLabel) panel.find("error:Algorithm");
         assertFalse(error.isVisible());
 

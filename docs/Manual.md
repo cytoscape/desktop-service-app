@@ -39,20 +39,21 @@ Installing checks that the service answers, and installs the app under the name 
 
 A service app can be run in two ways:
 
-- **Its menu entry.** A service app that names a Desktop menu gets an entry there, at the place it asks for, such as **Apps > Clustering > Community Detection**. The menus it can use are File, Edit, View, Select, Layout, Apps, Tools and Help. A service app that names no menu, or a menu Desktop doesn't have, gets no entry; run it from the manager instead.
+- **Its menu entry.** A service app that names a Desktop menu gets an entry there, at the place it asks for, such as **Apps > Clustering > Community Detection**. The menus it can use are File, Edit, View, Select, Layout, Apps, Tools and Help; `Layouts` means Layout, as in Cytoscape Web. A service app that names no menu, or a menu Desktop doesn't have (such as Analysis), gets its entry under **Apps > Service Apps** instead, below Manage and Install, with the rest of its path kept: an app asking for **Analysis > Community > Detect** appears at **Apps > Service Apps > Community > Detect**.
 - **A double click on its row** in the [Service Apps manager](#the-service-apps-manager).
 
 Both open the same dialog:
 
 - **Title and details.** The app's name and version are in the title. Its citation, and its description if the app asks for it, are shown at the top.
-- **One field per input**, built from the app's own definition: text boxes, drop-down lists, radio buttons, checkboxes, and column pickers that list only the columns of the right kind and type in your network.
+- **One field per input**, built from the app's own definition: text boxes, drop-down lists, radio buttons, checkboxes, and column pickers that list only the columns of the right kind and type in your network. A picker that accepts several column types lists columns of any of them.
+- **Grouped inputs.** Inputs the app puts in groups are shown in titled sections, nested the way the app nests them.
 - **Validation as you type.** A value the app doesn't accept is marked with the app's own help text as you type. Clicking **OK** while a value is invalid shows the problem and keeps the dialog open.
 - **Remembered values.** The dialog starts with the values you used last time with that app. After an upgrade to a different version, whether installed or found when Cytoscape starts, it starts from the app's defaults again.
 - **A reminder.** Results are applied to your network and can't be undone.
 
 The dialog appears even for an app with no inputs, so you always see what is about to run.
 
-Click **OK** and the network you were looking at is sent to the service: the whole network, or only the selected nodes and edges when the app works on a selection. The progress bar follows the service. When the service is done, its result is applied to that same network, even if you've switched to another one in the meantime.
+Click **OK** and the network you were looking at is sent to the service: the whole network, or only the selected nodes and edges when the app works on a selection. An app that takes no data (its input type is missing or `none`) gets only its inputs, and runs without a network open. The progress bar follows the service. When the service is done, its result is applied to that same network, even if you've switched to another one in the meantime.
 
 ### When a menu entry is greyed out
 
@@ -68,11 +69,13 @@ It is also greyed out when the app can't run at all. Then its tooltip ends with 
 
 ## The Service Apps manager
 
-**Apps > Service Apps > Manage** lists every installed service app, including those without a menu entry:
+**Apps > Service Apps > Manage** lists every installed service app:
 
 | Column | Shows |
 |---|---|
 | **Name** | The app's name. Hover to see its version and web address. |
+| **Description** | The app's description. Hover to read all of it. |
+| **Author** | The app's author. |
 | **Status** | **Checking…** when the manager opens, then **Online** (bold green) or **Offline** (bold red) as each service answers or doesn't. |
 
 - **Double-click** an app's row, or select it and press **Enter**, to run it, opening the same dialog as its menu entry. The row turns light blue until the dialog closes. A double click does nothing while the app is **Checking…** or **Offline**, or when Desktop can't run it; hover over the name to see why.
@@ -89,7 +92,7 @@ A service app's result is a list of actions, applied in order:
 | Update selection | Exactly the listed nodes and edges become selected; everything else is deselected. |
 | Update layouts | The listed nodes move. Without a particular view, they move in every view of the network. |
 | Update tables | Node or edge columns are added or filled in. Rows for IDs that aren't in the network are skipped and counted. |
-| Update network | The network is updated in place, keeping its identity, views and style: attributes are updated, new nodes and edges are added, and nodes and edges that were sent but left out of the result are removed. A run on a selection never removes anything outside it. |
+| Update network | The network is updated in place, keeping its identity, views and style: attributes are updated, new nodes and edges are added, and nodes and edges that were sent but left out of the result are removed. A run on a selection never removes anything outside it. A visual style in the result isn't applied; Cytoscape Web, by contrast, replaces the whole network with the result, style included. |
 | Add networks | Each returned network opens as a new network collection with a view. The first becomes the current network. |
 | Open URL | The address opens in your web browser. |
 | Add tables | Not supported yet. It is skipped, with a note. |
@@ -138,11 +141,11 @@ Every feature above is also available as commands in the `serviceapps` namespace
 
 | Command | Does |
 |---|---|
-| `serviceapps list` | The installed service apps: name, version, web address, and whether the service last answered |
+| `serviceapps list` | The installed service apps: name, version, web address, whether the service last answered, what the app does, and why Desktop can't run it, if it can't. Service apps aren't registered as Desktop commands, so this is how to discover them |
 | `serviceapps install url= [name=] [version=]` | Installs or upgrades the service app at `url`, under the name and version it reports. `name` and `version` are optional checks: when given, the install is refused if the service reports something else |
 | `serviceapps uninstall name=` | Uninstalls a service app |
 | `serviceapps status name=` | Checks that a service answers now |
-| `serviceapps describe name=` | An app's metadata and the JSON Schemas of what to pass to `task call` |
+| `serviceapps describe name=` | An app's metadata, the JSON Schemas of what to pass to `task call`, and what its results change in Desktop |
 | `serviceapps task call app= serviceInput= uiInput=` | Runs an app in the background, as its menu entry does, and returns a `task_id` |
 | `serviceapps task status task_id=` | The run's state: `{progress, message, status, result: null}` |
 
@@ -150,10 +153,11 @@ Each command's own description, arguments and example reply are in its command m
 
 ### Running a service app as an agent
 
-1. **Find the app.** `serviceapps list` lists the installed apps.
-2. **Learn its inputs.** `serviceapps describe name=<app>` returns two JSON Schemas, one for each JSON argument of `task call`:
-   - **`serviceInputSchema`**, for `serviceInput`. Parameters are keyed by their display names, and input columns by their names. It gives each value's type, allowed values, pattern, bounds, default and description. Column pickers say which table and column type they need; the columns come from the network the run targets.
+1. **Find the app.** `serviceapps list` lists the installed apps, with what each does and whether Desktop can run it. Each app works like a command, but isn't registered as a Desktop command, so this is the only way to discover them. List them again when you need them: the set changes as apps are installed and uninstalled.
+2. **Learn its inputs and outputs.** `serviceapps describe name=<app>` returns the app's metadata, its outputs, and two JSON Schemas, one for each JSON argument of `task call`:
+   - **`serviceInputSchema`**, for `serviceInput`. Parameters are keyed by their display names; when several share a display name, each of those is keyed by its groups and display name joined with `/`, such as `Clusters/Gap`, as Cytoscape Web keys them. Input columns are keyed by their names. It gives each value's type, allowed values, pattern, bounds, default and description. Column pickers say which table and column type they need; the columns come from the network the run targets.
    - **`uiInputSchema`**, for `uiInput`.
+   - **`resultActions`**, its outputs: for each result action the app declares, what it changes in Desktop (`effect`) and which `uiInput` fields choose where (`targets`). For example, `updateTables` adds or fills in node or edge columns of the target network, chosen by `networkId`.
 3. **Start the run.** Call `serviceapps task call app=<app> serviceInput=<JSON> uiInput=<JSON>`.
    - **`serviceInput` (optional when every value has a default).** For example, `{"parameters":{"Resolution":0.5},"inputColumns":{"Gene names":"name"}}`. Omitted values take their defaults, and unknown names are rejected. Values are checked with the dialog's own rules, and every problem names its field.
    - **`uiInput` (optional).** For example, `{"networkId":52}`.

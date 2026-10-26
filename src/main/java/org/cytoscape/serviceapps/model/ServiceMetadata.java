@@ -36,4 +36,9 @@ public class ServiceMetadata {
     public List<Parameter> parameters() {
         return parameters == null ? List.of() : parameters;
     }
+
+    /** Metadata text for a listing: on one line, without surrounding spaces; blank for null. */
+    public static String oneLine(String text) {
+        return text == null ? "" : text.strip().replaceAll("\\s+", " ");
+    }
 }

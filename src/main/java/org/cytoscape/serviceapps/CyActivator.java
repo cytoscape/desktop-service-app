@@ -214,7 +214,7 @@ public class CyActivator extends AbstractCyActivator {
         UiTargetResolver targets = new UiTargetResolver(networkManager, viewManager, applications);
         ServiceInputParser inputs = new ServiceInputParser(forms);
         Map<Class<? extends Task>, Supplier<Task>> commands = new LinkedHashMap<>();
-        commands.put(ListCommandTask.class, () -> new ListCommandTask(registry));
+        commands.put(ListCommandTask.class, () -> new ListCommandTask(registry, cx2));
         commands.put(InstallCommandTask.class, () -> new InstallCommandTask(registry, clients));
         commands.put(UninstallCommandTask.class, () -> new UninstallCommandTask(registry));
         commands.put(StatusCommandTask.class, () -> new StatusCommandTask(registry, clients));

@@ -14,6 +14,7 @@ import com.google.gson.JsonParser;
 import org.cytoscape.serviceapps.client.ClientSettings;
 import org.cytoscape.serviceapps.client.DefaultServiceAppClientFactory;
 import org.cytoscape.serviceapps.client.ServiceAppClientFactory;
+import org.cytoscape.serviceapps.cx.Cx2Support;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.fixture.ScenarioCatalog;
@@ -55,7 +56,7 @@ class CommandsHttpTest {
     }
 
     private JsonArray list() {
-        ListCommandTask task = new ListCommandTask(registry);
+        ListCommandTask task = new ListCommandTask(registry, mock(Cx2Support.class));
         task.run(monitor);
         return JsonParser.parseString(task.getResults(String.class)).getAsJsonArray();
     }

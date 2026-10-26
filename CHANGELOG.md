@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - Unreleased
+## [0.1.1] - Unreleased
+
+Parity with Cytoscape Web's newer service app metadata.
+
+### Fixed
+
+- **`columnTypeFilter` given as a list.** A service app whose column picker names several column
+types, as Cytoscape Web allows, failed to install. It now installs, and the picker lists columns of
+any of those types.
+- **`serviceInputDefinition.type: "none"`.** An app that asks for no data no longer gets an empty
+node table and no longer needs an open network: it is sent `data: {}`, as in Cytoscape Web.
+
+### Added
+
+- **Parameter `groups`.** Grouped parameters are shown in nested, titled sections of the dialog.
+Parameters that share a display name are keyed by their groups and name, such as `Nodes/Gap`, as
+Cytoscape Web keys them, so one no longer overwrites the other.
+
+## [0.1.0] - 2026-10-23
 
 ### Added
 

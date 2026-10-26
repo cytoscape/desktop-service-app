@@ -4,6 +4,7 @@ import java.awt.event.ActionEvent;
 import java.util.function.Supplier;
 
 import org.cytoscape.application.swing.AbstractCyAction;
+import org.cytoscape.serviceapps.placement.MenuPlacementResolver;
 
 /**
  * {@code Apps > Service Apps > Manage}: always present, whether or not any service apps are
@@ -11,7 +12,10 @@ import org.cytoscape.application.swing.AbstractCyAction;
  */
 public class ManageServiceAppsAction extends AbstractCyAction {
 
-    public static final String MENU = "Apps.Service Apps";
+    /** Also where apps whose root isn't a Desktop menu get their entries. */
+    public static final String MENU =
+            MenuPlacementResolver.FALLBACK_MENU + "." + MenuPlacementResolver.FALLBACK_SUBMENU;
+
     public static final String TITLE = "Manage";
 
     private final Supplier<ServiceAppManagerDialog> dialogs;

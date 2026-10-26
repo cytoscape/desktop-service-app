@@ -81,9 +81,63 @@ class CommandMetadataTest {
     }
 
     @Test
+    void listIsTheWayToDiscoverServiceAppsAndSaysWhatComesNext() {
+        for (String text : List.of(ListCommandTask.DESCRIPTION, ListCommandTask.LONG_DESCRIPTION)) {
+            assertTrue(
+                    text.contains("not registered as") && text.contains("Desktop command"), text);
+            assertTrue(text.contains("serviceapps describe"), text);
+            assertTrue(text.contains("task call"), text);
+        }
+        assertTrue(ListCommandTask.DESCRIPTION.startsWith("Discover the service apps"));
+        assertTrue(
+                ListCommandTask.LONG_DESCRIPTION.contains("This command is how to discover them"));
+        assertTrue(ListCommandTask.LONG_DESCRIPTION.contains("serviceapps task status"));
+    }
+
+    @Test
+    void describeSaysWhereNamesComeFromAndDescribesOutputs() {
+        for (String text :
+                List.of(DescribeCommandTask.DESCRIPTION, DescribeCommandTask.LONG_DESCRIPTION)) {
+            assertTrue(text.contains("serviceapps list"), text);
+        }
+        assertTrue(
+                DescribeCommandTask.LONG_DESCRIPTION.contains(
+                        "- resultActions: the app's outputs"));
+    }
+
+    /** The metadata is for any caller, so it names no particular client. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("commands")
+    void theMetadataNamesNoParticularClient(Class<? extends Task> type) {
+        Commands.Command command = Commands.Command.of(type);
+        List<String> texts =
+                new ArrayList<>(
+                        List.of(
+                                command.description(),
+                                command.longDescription(),
+                                command.exampleJson()));
+        for (Field field : type.getFields()) {
+            Tunable tunable = field.getAnnotation(Tunable.class);
+            if (tunable != null) {
+                texts.addAll(
+                        List.of(
+                                tunable.description(),
+                                tunable.longDescription(),
+                                tunable.exampleStringValue()));
+            }
+        }
+        for (String text : texts) {
+            for (String client : List.of("MCP", "Claude")) {
+                assertFalse(text.contains(client), client + " in: " + text);
+            }
+        }
+    }
+
+    @Test
     void taskCallPointsAgentsToDescribeAndJsonStrings() {
         String text = TaskCallCommandTask.LONG_DESCRIPTION;
 
+        assertTrue(text.contains("serviceapps list"), text);
         assertTrue(text.contains("serviceapps describe name="), text);
         assertTrue(text.contains("JSON *string*"), text);
         assertTrue(text.contains("serviceapps task status task_id="), text);

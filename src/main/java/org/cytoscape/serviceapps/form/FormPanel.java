@@ -29,13 +29,17 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
 import org.cytoscape.serviceapps.ui.DesktopColors;
+import org.cytoscape.serviceapps.ui.PlainText;
 
 /**
  * Draws a {@link FormSpec} as Swing controls and reads the entered values back.
  *
+ * <p>Parameters with {@code groups} are drawn inside titled sections, nested by group (see {@link
+ * ParameterGroups}).
+ *
  * <p>Each control is named for tests: {@code param:<key>} for a parameter, {@code column:<key>} for
  * an input column, and {@code error:<key>} for its inline validation message. Radio buttons are
- * named {@code param:<key>:<option>}.
+ * named {@code param:<key>:<option>}, and a group's section {@code group:<A/B>}.
  */
 public class FormPanel extends JPanel {
 
@@ -54,14 +58,12 @@ public class FormPanel extends JPanel {
         row = header(row);
         if (!spec.parameters().isEmpty()) {
             row = section("Parameters", row);
-            for (ControlSpec control : spec.parameters()) {
-                row = control(control, "param:", parameterReaders, row);
-            }
+            row = parameters(this, ParameterGroups.of(spec.parameters()), row);
         }
         if (!spec.inputColumns().isEmpty()) {
             row = section("Input columns", row);
             for (ControlSpec control : spec.inputColumns()) {
-                row = control(control, "column:", columnReaders, row);
+                row = control(this, control, "column:", columnReaders, row);
             }
         }
         JLabel note = new JLabel(UNDO_NOTE);
@@ -102,9 +104,9 @@ public class FormPanel extends JPanel {
         JLabel title =
                 new JLabel(
                         "<html><b>"
-                                + escape(spec.appName())
+                                + PlainText.escape(spec.appName())
                                 + "</b> &nbsp;version "
-                                + escape(spec.version())
+                                + PlainText.escape(spec.version())
                                 + "</html>");
         title.setName("title");
         add(title, constraints(0, row++, 2, 0, new Insets(0, 0, 4, 0)));
@@ -117,7 +119,7 @@ public class FormPanel extends JPanel {
             JLabel description =
                     new JLabel(
                             "<html><div style='width:360px'>"
-                                    + escape(spec.description())
+                                    + PlainText.escape(spec.description())
                                     + "</div></html>");
             description.setName("description");
             add(description, constraints(0, row++, 2, 0, new Insets(4, 0, 4, 0)));
@@ -131,22 +133,44 @@ public class FormPanel extends JPanel {
         return row + 1;
     }
 
+    /** Adds a group's controls and subgroups to {@code target}, in order, from {@code row}. */
+    private int parameters(JPanel target, ParameterGroups.Group group, int row) {
+        for (ParameterGroups.Child child : group.children()) {
+            if (child instanceof ParameterGroups.Control control) {
+                row = control(target, control.spec(), "param:", parameterReaders, row);
+            } else if (child instanceof ParameterGroups.Group subgroup) {
+                JPanel section = new JPanel(new GridBagLayout());
+                section.setName("group:" + String.join("/", subgroup.path()));
+                section.setBorder(
+                        BorderFactory.createCompoundBorder(
+                                BorderFactory.createTitledBorder(subgroup.name()),
+                                BorderFactory.createEmptyBorder(2, 6, 4, 6)));
+                parameters(section, subgroup, 0);
+                target.add(section, constraints(0, row++, 2, 1, new Insets(6, 0, 4, 0)));
+            }
+        }
+        return row;
+    }
+
     private int control(
+            JPanel target,
             ControlSpec control,
             String prefix,
             Map<String, Supplier<List<String>>> readers,
             int row) {
-        JLabel label = new JLabel(control.label());
-        label.setToolTipText(control.tooltip());
+        // Labels, choices, tooltips and help text come from the service's metadata.
+        JLabel label = PlainText.of(new JLabel());
+        label.setText(control.label());
+        label.setToolTipText(PlainText.tooltip(control.tooltip()));
         JComponent component = component(control, prefix, readers);
-        component.setToolTipText(control.tooltip());
-        add(label, constraints(0, row, 1, 0, new Insets(2, 0, 2, 8)));
-        add(component, constraints(1, row, 1, 1, new Insets(2, 0, 2, 0)));
-        JLabel error = new JLabel();
+        component.setToolTipText(PlainText.tooltip(control.tooltip()));
+        target.add(label, constraints(0, row, 1, 0, new Insets(2, 0, 2, 8)));
+        target.add(component, constraints(1, row, 1, 1, new Insets(2, 0, 2, 0)));
+        JLabel error = PlainText.of(new JLabel());
         error.setName("error:" + control.key());
         error.setForeground(DesktopColors.error());
         errorLabels.put(control.key(), error);
-        add(error, constraints(1, row + 1, 1, 1, new Insets(0, 0, 4, 0)));
+        target.add(error, constraints(1, row + 1, 1, 1, new Insets(0, 0, 4, 0)));
         return row + 2;
     }
 
@@ -179,7 +203,8 @@ public class FormPanel extends JPanel {
                     ButtonGroup buttons = new ButtonGroup();
                     List<JRadioButton> radios = new ArrayList<>();
                     for (String option : control.options()) {
-                        JRadioButton radio = new JRadioButton(option);
+                        JRadioButton radio = PlainText.of(new JRadioButton());
+                        radio.setText(option);
                         radio.setName(name + ":" + option);
                         radio.setSelected(control.selected().contains(option));
                         radio.addActionListener(e -> refreshErrors());
@@ -222,6 +247,9 @@ public class FormPanel extends JPanel {
                 {
                     JComboBox<String> combo =
                             new JComboBox<>(control.options().toArray(new String[0]));
+                    if (combo.getRenderer() instanceof JComponent renderer) {
+                        PlainText.of(renderer);
+                    }
                     combo.setName(name);
                     combo.setSelectedItem(
                             control.selected().isEmpty() ? null : control.selected().get(0));
@@ -274,12 +302,6 @@ public class FormPanel extends JPanel {
 
     private static String first(List<String> values) {
         return values.isEmpty() ? "" : values.get(0);
-    }
-
-    private static String escape(String text) {
-        return text == null
-                ? ""
-                : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** Finds a named descendant, for tests. */

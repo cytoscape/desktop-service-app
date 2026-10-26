@@ -19,6 +19,9 @@ public final class AppSupport {
     public static final String INPUT_EDGE = "edge";
     public static final String INPUT_NETWORK = "network";
 
+    /** Cytoscape Web's explicit "send no data" type; read the same as no type. */
+    public static final String INPUT_NONE = "none";
+
     public static final String SCOPE_DYNAMIC = "dynamic";
     public static final String SCOPE_SELECTED = "selected";
     public static final String SCOPE_ALL = "all";
@@ -56,13 +59,17 @@ public final class AppSupport {
         return Optional.empty();
     }
 
-    /** {@code node}, {@code edge}, {@code network}, or null when the app takes no data. */
+    /**
+     * {@code node}, {@code edge}, {@code network}, or null when the app takes no data: no type, or
+     * {@code none}.
+     */
     public static String inputType(ServiceMetadata meta) {
         ServiceInputDefinition input = meta == null ? null : meta.serviceInputDefinition;
         if (input == null || input.type == null || input.type.isBlank()) {
             return null;
         }
-        return input.type.strip().toLowerCase(Locale.ROOT);
+        String type = input.type.strip().toLowerCase(Locale.ROOT);
+        return INPUT_NONE.equals(type) ? null : type;
     }
 
     /** {@code dynamic} (the default), {@code selected} or {@code all}. */

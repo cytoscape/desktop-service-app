@@ -10,7 +10,7 @@ import java.util.List;
  */
 public class ServiceInputDefinition {
 
-    /** {@code node}, {@code edge}, {@code network}, or null for no data. */
+    /** {@code node}, {@code edge}, {@code network}, and {@code none} or null for no data. */
     public String type;
 
     /** {@code dynamic} (the default), {@code selected} or {@code all}. */

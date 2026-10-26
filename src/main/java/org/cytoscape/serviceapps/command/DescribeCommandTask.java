@@ -3,6 +3,7 @@ package org.cytoscape.serviceapps.command;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.serviceapps.app.AppSupport;
+import org.cytoscape.serviceapps.call.ResultActionEffects;
 import org.cytoscape.serviceapps.call.ServiceInputSchema;
 import org.cytoscape.serviceapps.call.UiTargetResolver;
 import org.cytoscape.serviceapps.cx.Cx2Support;
@@ -22,10 +23,13 @@ public class DescribeCommandTask extends JsonResultTask {
 
     public static final String NAME = "describe";
     public static final String DESCRIPTION =
-            "Describe a service app: its metadata and the input schema to run it with task call";
+            "Describe an installed service app found with serviceapps list: what it does, the JSON"
+                    + " Schema of its inputs for task call, and the results it applies to Desktop";
     public static final String LONG_DESCRIPTION =
-            "Returns {metadata, serviceInputSchema, uiInputSchema, unsupportedReason?} for an"
-                    + " installed service app. Read it before serviceapps task call.\n\n"
+            "Describes one installed service app, by a name from serviceapps list. Read it before"
+                    + " serviceapps task call.\n\n"
+                    + "Returns {metadata, serviceInputSchema, uiInputSchema, resultActions,"
+                    + " unsupportedReason?}.\n\n"
                     + "- metadata: the app's service metadata, as the service reports it.\n"
                     + "- serviceInputSchema: the JSON Schema of task call's serviceInput argument,"
                     + " {parameters, inputColumns}, generated from the same rules as the app's"
@@ -34,6 +38,11 @@ public class DescribeCommandTask extends JsonResultTask {
                     + " network task call targets.\n"
                     + "- uiInputSchema: the JSON Schema of task call's optional uiInput argument,"
                     + " {networkId, networkViewId}.\n"
+                    + "- resultActions: the app's outputs, one entry per result action it declares:"
+                    + " {action, effect, targets}. effect says what the action changes in Desktop;"
+                    + " targets names the uiInput fields that choose where it applies. A service can"
+                    + " also return actions it does not declare; task status reports what was"
+                    + " applied.\n"
                     + "- unsupportedReason: present when Cytoscape Desktop can't run the app.";
     public static final String EXAMPLE_JSON =
             "{\"metadata\":{\"name\":\"Hello World\",\"version\":\"1.0\"},"
@@ -45,7 +54,10 @@ public class DescribeCommandTask extends JsonResultTask {
                     + "\"additionalProperties\":false},"
                     + "\"uiInputSchema\":{\"type\":\"object\",\"properties\":{\"networkId\":"
                     + "{\"type\":\"integer\"},\"networkViewId\":{\"type\":\"integer\"}},"
-                    + "\"required\":[],\"additionalProperties\":false}}";
+                    + "\"required\":[],\"additionalProperties\":false},"
+                    + "\"resultActions\":[{\"action\":\"updateTables\",\"effect\":\"Adds or fills in"
+                    + " node or edge columns of the target network; rows for IDs not in the network"
+                    + " are skipped.\",\"targets\":[\"networkId\"]}]}";
 
     @Tunable(
             description = "Service app name",
@@ -73,6 +85,7 @@ public class DescribeCommandTask extends JsonResultTask {
         json.add("metadata", Json.tree(meta));
         json.add("serviceInputSchema", ServiceInputSchema.of(meta));
         json.add("uiInputSchema", UiTargetResolver.schema());
+        json.add("resultActions", ResultActionEffects.of(meta));
         AppSupport.unsupportedReason(meta, cx2.available())
                 .ifPresent(reason -> json.addProperty("unsupportedReason", reason));
         setResult(json, Json.writeWithNulls(json));
