@@ -3,11 +3,13 @@ package org.cytoscape.serviceapps.menu;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -70,7 +72,7 @@ public class ServiceAppLifecycle implements RegistryListener {
     private final ExecutorService refresher;
 
     private final Map<String, Entry> entries = new HashMap<>();
-    private final Map<String, String> noEntry = new HashMap<>();
+    private final Set<String> noEntry = new HashSet<>();
     private volatile boolean stopped;
 
     public ServiceAppLifecycle(
@@ -197,9 +199,8 @@ public class ServiceAppLifecycle implements RegistryListener {
         Optional<MenuPlacement> placement = MenuPlacementResolver.resolve(meta.get());
         if (placement.isEmpty()) {
             remove(name);
-            String reason = "its menu entry has no title";
-            if (!reason.equals(noEntry.put(name, reason))) {
-                LOGGER.info("No menu entry for '{}': {}", name, reason);
+            if (noEntry.add(name)) {
+                LOGGER.info("No menu entry for '{}': its menu entry has no title", name);
             }
             return;
         }
@@ -294,6 +295,6 @@ public class ServiceAppLifecycle implements RegistryListener {
 
     /** Apps that get no menu entry, for tests. */
     synchronized List<String> withoutEntry() {
-        return new ArrayList<>(noEntry.keySet());
+        return new ArrayList<>(noEntry);
     }
 }

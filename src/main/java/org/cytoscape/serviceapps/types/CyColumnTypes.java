@@ -107,10 +107,6 @@ public final class CyColumnTypes {
         }
     }
 
-    public static boolean matches(String filter, CyColumn column) {
-        return matches(filter, new ColumnType(column.getType(), column.getListElementType()));
-    }
-
     /**
      * Whether a column type passes any of the filters, as Cytoscape Web reads a {@code
      * columnTypeFilter} list. An empty list matches any type.

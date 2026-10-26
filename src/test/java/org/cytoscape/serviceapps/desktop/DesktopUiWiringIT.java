@@ -178,6 +178,20 @@ class DesktopUiWiringIT {
 
     @Test
     @Order(3)
+    void anAppWithParametersSharingANameInTheSameGroupsLogsAWarning(
+            DesktopContainer desktop, FixtureServer fixture) throws IOException {
+        install(desktop, fixture, "param-shared-key");
+
+        awaitLog(
+                desktop,
+                "'"
+                        + app("param-shared-key")
+                        + "' has parameters with the same name in the same groups; only the last"
+                        + " of each is used: Nodes/Gap");
+    }
+
+    @Test
+    @Order(4)
     void anUnsupportedAppGetsADisabledEntryWithTheReason(
             DesktopContainer desktop, FixtureServer fixture) throws IOException {
         install(desktop, fixture, "unsupported-file");
@@ -191,7 +205,7 @@ class DesktopUiWiringIT {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void uninstallRemovesTheEntry(DesktopContainer desktop) throws IOException {
         CyRest.Reply reply =
                 desktop.cyrest()
@@ -205,7 +219,7 @@ class DesktopUiWiringIT {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     void afterARestartEntriesComeBackAndMetadataIsRefreshed(DesktopContainer desktop) {
         desktop.restart();
 
@@ -228,7 +242,7 @@ class DesktopUiWiringIT {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     void taskCallWorksAfterTheRestart(DesktopContainer desktop, FixtureServer fixture) {
         // A restart leaves no networks open: load the contract network, then run through the
         // command path, which was registered again at startup.
@@ -244,7 +258,7 @@ class DesktopUiWiringIT {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     void uninstallingRemovesEmptiedSubmenusAndKeepsOnesStillInUse(DesktopContainer desktop)
             throws IOException {
         // Both lines are written after reading Desktop's live menu bar. Every other fixture app's
@@ -277,7 +291,7 @@ class DesktopUiWiringIT {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     void theAppLogsNoErrors(DesktopContainer desktop) {
         List<String> errors =
                 desktop.logs()

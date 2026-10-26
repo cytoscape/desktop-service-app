@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -24,6 +25,7 @@ import org.cytoscape.serviceapps.client.ServiceAppClient;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.form.FormSpecBuilder;
+import org.cytoscape.serviceapps.model.ResultAction;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.render.RenderServiceAppUI;
@@ -357,6 +359,71 @@ class TaskCommandsTest {
                         .getAsJsonObject("properties")
                         .has("networkViewId"));
         assertFalse(json.has("unsupportedReason"));
+    }
+
+    @Test
+    void describeGivesEachDeclaredResultActionsEffectInOrder() {
+        String app = install("param-text-number");
+        ServiceMetadata meta = registry.requireMeta(app);
+        meta.cyWebActions =
+                List.of(
+                        ResultAction.UPDATE_TABLES,
+                        ResultAction.UPDATE_LAYOUTS,
+                        ResultAction.OPEN_URL,
+                        "somethingNew");
+        registry.updateMeta(app, meta.version, meta);
+        DescribeCommandTask task = new DescribeCommandTask(registry, cx2);
+        task.name = app;
+
+        task.run(mock(TaskMonitor.class));
+
+        JsonArray actions = json(task).getAsJsonArray("resultActions");
+        assertEquals(4, actions.size());
+        JsonObject tables = actions.get(0).getAsJsonObject();
+        assertEquals("updateTables", tables.get("action").getAsString());
+        assertEquals(
+                "Adds or fills in node or edge columns of the target network; rows for IDs not in"
+                        + " the network are skipped.",
+                tables.get("effect").getAsString());
+        assertEquals(JsonParser.parseString("[\"networkId\"]"), tables.get("targets"));
+        assertEquals(
+                JsonParser.parseString("[\"networkId\",\"networkViewId\"]"),
+                actions.get(1).getAsJsonObject().get("targets"));
+        assertEquals(new JsonArray(), actions.get(2).getAsJsonObject().get("targets"));
+        JsonObject unknown = actions.get(3).getAsJsonObject();
+        assertEquals("somethingNew", unknown.get("action").getAsString());
+        assertTrue(
+                unknown.get("effect")
+                        .getAsString()
+                        .startsWith("Not a result action Desktop knows"));
+    }
+
+    @Test
+    void describeOfAnAppDeclaringNoActionsHasNoResultActions() {
+        String app = install("param-text-number");
+        ServiceMetadata meta = registry.requireMeta(app);
+        meta.cyWebActions = null;
+        registry.updateMeta(app, meta.version, meta);
+        DescribeCommandTask task = new DescribeCommandTask(registry, cx2);
+        task.name = app;
+
+        task.run(mock(TaskMonitor.class));
+
+        assertEquals(new JsonArray(), json(task).getAsJsonArray("resultActions"));
+    }
+
+    @Test
+    void describesExampleHasTheShapeOfARealReply() {
+        DescribeCommandTask task = new DescribeCommandTask(registry, cx2);
+        task.name = install("param-text-number");
+        task.run(mock(TaskMonitor.class));
+
+        JsonObject example =
+                JsonParser.parseString(DescribeCommandTask.EXAMPLE_JSON).getAsJsonObject();
+        assertEquals(json(task).keySet(), example.keySet());
+        assertEquals(
+                json(task).getAsJsonArray("resultActions").get(0).getAsJsonObject().keySet(),
+                example.getAsJsonArray("resultActions").get(0).getAsJsonObject().keySet());
     }
 
     @Test

@@ -151,6 +151,13 @@ public final class ScenarioCatalog {
                 withParams(param("Weighted", "checkBox").add("defaultValue", false).build()));
         add(all, "param-node-column-filters", columnFilterParams("nodeColumn"));
         add(all, "param-edge-column-filters", columnFilterParams("edgeColumn"));
+        // Two parameters with the same name in the same groups: only the last is used
+        add(
+                all,
+                "param-shared-key",
+                withParams(
+                        param("Gap", "text").add("groups", list("Nodes")).build(),
+                        param("Gap", "text").add("groups", list("Nodes")).build()));
         add(
                 all,
                 "param-column-filter-list",

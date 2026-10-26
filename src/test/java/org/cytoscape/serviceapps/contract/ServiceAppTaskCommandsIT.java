@@ -12,6 +12,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.cytoscape.serviceapps.app.AppSupport;
+import org.cytoscape.serviceapps.call.ResultActionEffects;
 import org.cytoscape.serviceapps.call.ServiceInputSchema;
 import org.cytoscape.serviceapps.command.Commands;
 import org.cytoscape.serviceapps.contract.ContractHarness.Outcome;
@@ -87,6 +88,7 @@ class ServiceAppTaskCommandsIT {
             ServiceMetadata meta = TestNetworks.scenario(scenario);
 
             assertEquals(ServiceInputSchema.of(meta), data.get("serviceInputSchema"), scenario);
+            assertEquals(ResultActionEffects.of(meta), data.get("resultActions"), scenario);
             assertEquals(
                     AppSupport.unsupportedReason(meta, true).orElse(null),
                     data.has("unsupportedReason")

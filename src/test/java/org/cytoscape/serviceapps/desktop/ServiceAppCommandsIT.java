@@ -116,7 +116,15 @@ class ServiceAppCommandsIT {
         JsonArray apps =
                 JsonParser.parseString(reply.lines().findFirst().orElse("")).getAsJsonArray();
 
-        assertEquals("Hello World", apps.get(0).getAsJsonObject().get("name").getAsString());
+        JsonObject hello = apps.get(0).getAsJsonObject();
+        assertEquals("Hello World", hello.get("name").getAsString());
+        assertEquals(
+                ScenarioCatalog.get(ScenarioCatalog.HELLO)
+                        .metadata()
+                        .get("description")
+                        .getAsString(),
+                hello.get("description").getAsString());
+        assertTrue(hello.get("unsupportedReason").isJsonNull(), hello.toString());
         assertTrue(reply.lines().anyMatch(line -> line.strip().equals("Finished")), reply);
     }
 

@@ -141,11 +141,11 @@ Every feature above is also available as commands in the `serviceapps` namespace
 
 | Command | Does |
 |---|---|
-| `serviceapps list` | The installed service apps: name, version, web address, and whether the service last answered |
+| `serviceapps list` | The installed service apps: name, version, web address, whether the service last answered, what the app does, and why Desktop can't run it, if it can't. Service apps aren't registered as Desktop commands, so this is how to discover them |
 | `serviceapps install url= [name=] [version=]` | Installs or upgrades the service app at `url`, under the name and version it reports. `name` and `version` are optional checks: when given, the install is refused if the service reports something else |
 | `serviceapps uninstall name=` | Uninstalls a service app |
 | `serviceapps status name=` | Checks that a service answers now |
-| `serviceapps describe name=` | An app's metadata and the JSON Schemas of what to pass to `task call` |
+| `serviceapps describe name=` | An app's metadata, the JSON Schemas of what to pass to `task call`, and what its results change in Desktop |
 | `serviceapps task call app= serviceInput= uiInput=` | Runs an app in the background, as its menu entry does, and returns a `task_id` |
 | `serviceapps task status task_id=` | The run's state: `{progress, message, status, result: null}` |
 
@@ -153,10 +153,11 @@ Each command's own description, arguments and example reply are in its command m
 
 ### Running a service app as an agent
 
-1. **Find the app.** `serviceapps list` lists the installed apps.
-2. **Learn its inputs.** `serviceapps describe name=<app>` returns two JSON Schemas, one for each JSON argument of `task call`:
+1. **Find the app.** `serviceapps list` lists the installed apps, with what each does and whether Desktop can run it. Each app works like a command, but isn't registered as a Desktop command, so this is the only way to discover them. List them again when you need them: the set changes as apps are installed and uninstalled.
+2. **Learn its inputs and outputs.** `serviceapps describe name=<app>` returns the app's metadata, its outputs, and two JSON Schemas, one for each JSON argument of `task call`:
    - **`serviceInputSchema`**, for `serviceInput`. Parameters are keyed by their display names; when several share a display name, each of those is keyed by its groups and display name joined with `/`, such as `Clusters/Gap`, as Cytoscape Web keys them. Input columns are keyed by their names. It gives each value's type, allowed values, pattern, bounds, default and description. Column pickers say which table and column type they need; the columns come from the network the run targets.
    - **`uiInputSchema`**, for `uiInput`.
+   - **`resultActions`**, its outputs: for each result action the app declares, what it changes in Desktop (`effect`) and which `uiInput` fields choose where (`targets`). For example, `updateTables` adds or fills in node or edge columns of the target network, chosen by `networkId`.
 3. **Start the run.** Call `serviceapps task call app=<app> serviceInput=<JSON> uiInput=<JSON>`.
    - **`serviceInput` (optional when every value has a default).** For example, `{"parameters":{"Resolution":0.5},"inputColumns":{"Gene names":"name"}}`. Omitted values take their defaults, and unknown names are rejected. Values are checked with the dialog's own rules, and every problem names its field.
    - **`uiInput` (optional).** For example, `{"networkId":52}`.

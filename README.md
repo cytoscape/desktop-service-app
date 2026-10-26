@@ -26,11 +26,11 @@ All commands are in the `serviceapps` namespace, take named arguments, and retur
 
 | Command | Does |
 |---|---|
-| `serviceapps list` | The installed service apps: `[{name, version, url, reachable}]` |
+| `serviceapps list` | The way to discover the installed service apps, which aren't registered as Desktop commands: `[{name, version, url, reachable, description, unsupportedReason}]` |
 | `serviceapps install url= [name=] [version=]` | Installs or upgrades the service app at `url`, under the name and version it reports. `name` and `version` are optional checks that the service must match |
 | `serviceapps uninstall name=` | Uninstalls a service app and removes its menu entry |
 | `serviceapps status name=` | Checks that the app's service answers now |
-| `serviceapps describe name=` | The app's metadata and the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for it |
+| `serviceapps describe name=` | The app's metadata, the JSON Schemas of `task call`'s `serviceInput` and `uiInput` for it, and its outputs (`resultActions`: what each declared result action changes in Desktop) |
 | `serviceapps task call app= serviceInput= uiInput=` | Runs the app in the background exactly as its menu entry does; returns `{task_id}` at once. `serviceInput` and the optional `uiInput` are JSON strings |
 | `serviceapps task status task_id=` | `{progress, message, status, result: null}`; `status` is `complete` only after the result is applied in Desktop |
 

@@ -128,7 +128,7 @@ class FormSpecBuilderTest {
             List<String> expected = new ArrayList<>();
             for (CyColumn column : table.getColumns()) {
                 if (!column.getName().equals("SUID")
-                        && CyColumnTypes.matches(filter.isEmpty() ? null : filter, column)) {
+                        && CyColumnTypes.matchesAny(CyColumnTypes.filters(filter), column)) {
                     expected.add(column.getName());
                 }
             }

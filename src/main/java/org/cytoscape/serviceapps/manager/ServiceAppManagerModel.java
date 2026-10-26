@@ -136,19 +136,14 @@ public class ServiceAppManagerModel {
                             app.name(),
                             app.version(),
                             app.url(),
-                            meta.map(m -> oneLine(m.description)).orElse(""),
-                            meta.map(m -> oneLine(m.author)).orElse(""),
+                            meta.map(m -> ServiceMetadata.oneLine(m.description)).orElse(""),
+                            meta.map(m -> ServiceMetadata.oneLine(m.author)).orElse(""),
                             checked.status(),
                             checked.detail(),
                             launcher.unavailableReason(app.name()).orElse(null)));
         }
         rows.sort(Comparator.comparing(Row::name, String.CASE_INSENSITIVE_ORDER));
         return rows;
-    }
-
-    /** The text on one line, without surrounding spaces; blank for null. */
-    private static String oneLine(String text) {
-        return text == null ? "" : text.strip().replaceAll("\\s+", " ");
     }
 
     /** Called with no arguments, on any thread, whenever the rows may have changed. */
