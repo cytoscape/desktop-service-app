@@ -52,6 +52,7 @@ public final class NdexSupport {
         return tracker;
     }
 
+    /** The link that gives a run the network's NDEx URL, or an empty value for a local network. */
     public NdexLink link() {
         return link;
     }
