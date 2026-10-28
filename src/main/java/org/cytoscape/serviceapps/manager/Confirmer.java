@@ -10,14 +10,14 @@ public interface Confirmer {
 
     boolean confirm(Component parent, String title, String question);
 
-    /** An OK/Cancel option pane. */
+    /** A Yes/No option pane. */
     Confirmer OPTION_PANE =
             (parent, title, question) ->
                     JOptionPane.showConfirmDialog(
                                     parent,
                                     question,
                                     title,
-                                    JOptionPane.OK_CANCEL_OPTION,
+                                    JOptionPane.YES_NO_OPTION,
                                     JOptionPane.QUESTION_MESSAGE)
-                            == JOptionPane.OK_OPTION;
+                            == JOptionPane.YES_OPTION;
 }

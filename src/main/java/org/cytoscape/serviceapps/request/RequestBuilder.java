@@ -18,9 +18,12 @@ import org.cytoscape.model.subnetwork.CyRootNetwork;
 import org.cytoscape.model.subnetwork.CySubNetwork;
 import org.cytoscape.serviceapps.app.AppSupport;
 import org.cytoscape.serviceapps.cx.Cx2Support;
+import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.model.TaskRequest;
+import org.cytoscape.serviceapps.ndex.NdexLink;
 import org.cytoscape.view.model.CyNetworkView;
 
 /**
@@ -36,14 +39,19 @@ import org.cytoscape.view.model.CyNetworkView;
  *   <li>Network input, model {@code graph}: minimal CX2 with IDs only.
  * </ul>
  *
+ * <p>Desktop fills each {@code ndexUUID} parameter itself, with the target's NDEx URL from {@link
+ * NdexLink}, whatever the input says for it.
+ *
  * @see <a href="https://github.com/cytoscape/cytoscape-web/wiki/Task-Request">Task Request</a>
  */
 public class RequestBuilder {
 
     private final Cx2Support cx2;
+    private final NdexLink ndex;
 
-    public RequestBuilder(Cx2Support cx2) {
+    public RequestBuilder(Cx2Support cx2, NdexLink ndex) {
         this.cx2 = cx2;
+        this.ndex = ndex;
     }
 
     /**
@@ -95,6 +103,12 @@ public class RequestBuilder {
 
         Map<String, String> parameters = new LinkedHashMap<>();
         input.parameters().forEach((key, value) -> parameters.put(key, value == null ? "" : value));
+        List<String> keys = ParameterKeys.of(meta.parameters());
+        for (int i = 0; i < keys.size(); i++) {
+            if (Parameter.NDEX_UUID.equals(meta.parameters().get(i).type)) {
+                parameters.put(keys.get(i), ndex.networkUrl(target));
+            }
+        }
         return new BuiltRequest(new TaskRequest(meta.name, data, parameters), sent);
     }
 

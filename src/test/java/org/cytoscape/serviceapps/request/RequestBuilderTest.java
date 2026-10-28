@@ -18,9 +18,12 @@ import org.cytoscape.model.CyNode;
 import org.cytoscape.model.subnetwork.CyRootNetwork;
 import org.cytoscape.model.subnetwork.CySubNetwork;
 import org.cytoscape.serviceapps.form.FormSpecBuilder;
+import org.cytoscape.serviceapps.model.Parameter;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
+import org.cytoscape.serviceapps.ndex.NdexLink;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
+import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 
@@ -39,7 +42,7 @@ class RequestBuilderTest {
                     TestNetworks.support().getNetworkManager(),
                     mock(CyNetworkViewManager.class),
                     null);
-    private final RequestBuilder builder = new RequestBuilder(cx2);
+    private final RequestBuilder builder = new RequestBuilder(cx2, TestNdex.link());
 
     /** a - b - c, edges ab and bc; node a and edge bc may be selected. */
     private final CyNetwork network = TestNetworks.empty();
@@ -295,5 +298,54 @@ class RequestBuilderTest {
         assertThrows(
                 RequestException.class,
                 () -> builder.build(network("all", "network"), ServiceInput.empty(), null, null));
+    }
+
+    private static Parameter parameter(String displayName, String type) {
+        Parameter parameter = new Parameter();
+        parameter.displayName = displayName;
+        parameter.type = type;
+        return parameter;
+    }
+
+    /**
+     * Builds with an NDEx link that answers {@code url} for {@link #network} and empty otherwise.
+     */
+    private BuiltRequest buildWithNdex(ServiceMetadata meta, ServiceInput input, CyNetwork target) {
+        NdexLink ndex =
+                new NdexLink(() -> "https://ndex.example", n -> false) {
+                    @Override
+                    public String networkUrl(CyNetwork n) {
+                        return n == network ? "https://ndex.example/v3/networks/u-1" : "";
+                    }
+                };
+        return new RequestBuilder(cx2, ndex).build(meta, input, target, null);
+    }
+
+    @Test
+    void anNdexUuidParameterCarriesTheTargetsNdexUrlWhateverTheInputSays() {
+        ServiceMetadata meta = network("all", "network");
+        meta.parameters =
+                List.of(parameter("Interactome", Parameter.NDEX_UUID), parameter("K", "text"));
+
+        BuiltRequest built =
+                buildWithNdex(
+                        meta,
+                        new ServiceInput(
+                                Map.of("K", "10", "Interactome", "typed by a caller"), Map.of()),
+                        network);
+
+        assertEquals(
+                Map.of("Interactome", "https://ndex.example/v3/networks/u-1", "K", "10"),
+                built.request().parameters);
+    }
+
+    @Test
+    void anAppWithNoInputSendsAnEmptyNdexValueWhenNoNetworkIsOpen() {
+        ServiceMetadata meta = meta(null, null);
+        meta.parameters = List.of(parameter("Interactome", Parameter.NDEX_UUID));
+
+        BuiltRequest built = buildWithNdex(meta, ServiceInput.empty(), null);
+
+        assertEquals(Map.of("Interactome", ""), built.request().parameters);
     }
 }

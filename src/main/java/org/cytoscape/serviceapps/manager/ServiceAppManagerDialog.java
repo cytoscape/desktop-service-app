@@ -10,7 +10,6 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
-import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -36,13 +35,13 @@ import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellRenderer;
 
 import org.cytoscape.serviceapps.ui.DesktopColors;
 import org.cytoscape.serviceapps.ui.PlainText;
+import org.cytoscape.util.swing.IconManager;
 
 /**
  * The Service Apps dialog: every installed app's name and status, or a centered "No Service Apps
@@ -50,12 +49,14 @@ import org.cytoscape.serviceapps.ui.PlainText;
  * window's X or Escape.
  *
  * <ul>
- *   <li>A single click highlights a row in light red and enables Uninstall for it, once the
- *       double-click interval has passed, so the first click of a double click shows no red.
+ *   <li>Each row ends with a trashcan. A click on it asks {@code Are you sure you want to uninstall
+ *       <name>?}, and Yes uninstalls the app. Delete or Backspace on the selected row asks the
+ *       same.
+ *   <li>A single click selects a row and shades it light grey.
  *   <li>A double click on an app that is Online and runnable, or Enter on its selected row, invokes
  *       it: the row turns light blue while its input form is open. On any other app, both do
- *       nothing.
- *   <li>A click anywhere else in the dialog clears the highlight, and with it Uninstall.
+ *       nothing. A double click on the trashcan only asks to uninstall.
+ *   <li>A click anywhere else in the dialog clears the selection.
  * </ul>
  */
 public class ServiceAppManagerDialog extends JDialog {
@@ -74,9 +75,13 @@ public class ServiceAppManagerDialog extends JDialog {
     static final int DESCRIPTION = 1;
     static final int AUTHOR = 2;
     static final int STATUS = 3;
+    static final int TRASH = 4;
 
-    /** The single-clicked row, which Uninstall acts on. */
-    static final Color SELECTED_BACKGROUND = new Color(0xfd, 0xe8, 0xe8);
+    /** The size of the trashcan glyph, in points. */
+    public static final float ICON_SIZE = 14.0f;
+
+    /** The selected row, which Enter runs and Delete uninstalls. */
+    static final Color SELECTED_BACKGROUND = new Color(0xee, 0xee, 0xee);
 
     /** The double-clicked row, while its input form is open. */
     static final Color INVOKING_BACKGROUND = new Color(0xe1, 0xee, 0xfb);
@@ -89,6 +94,7 @@ public class ServiceAppManagerDialog extends JDialog {
     private static final int DESCRIPTION_WIDTH = 360;
     private static final int AUTHOR_WIDTH = 150;
     private static final int STATUS_WIDTH = 110;
+    private static final int TRASH_WIDTH = 40;
     private static final Dimension SIZE = new Dimension(900, 340);
 
     /** Wraps a long description in its tooltip. */
@@ -108,21 +114,14 @@ public class ServiceAppManagerDialog extends JDialog {
     private final JTable table;
     private final JLabel emptyLabel = new JLabel(EMPTY_TEXT, SwingConstants.CENTER);
     private final JLabel appStoreLink = new JLabel();
-    private final JButton uninstall = new JButton("Uninstall");
     private String shownCard;
 
     /** The app whose input form is open after a double click, or null. Read on the EDT only. */
     private String invoking;
 
     /**
-     * True from a click on a row until the double-click interval passes without a second click.
-     * Until then the row isn't highlighted, so a double click goes straight to light blue.
-     */
-    private boolean clickPending;
-
-    private final Timer clickConfirmed = new Timer(doubleClickInterval(), e -> confirmClick());
-
-    /**
+     * @param confirmer asks the user to confirm an uninstall
+     * @param iconFont Desktop's icon font, which draws the trashcan
      * @param appStore the App Store page to point to when no service apps are installed
      * @param openUrl opens a web address in the system browser
      */
@@ -130,6 +129,7 @@ public class ServiceAppManagerDialog extends JDialog {
             Window owner,
             ServiceAppManagerModel model,
             Confirmer confirmer,
+            Font iconFont,
             AppStoreLink appStore,
             Consumer<String> openUrl) {
         super(owner, TITLE, ModalityType.MODELESS);
@@ -162,8 +162,9 @@ public class ServiceAppManagerDialog extends JDialog {
         table.getColumnModel().getColumn(AUTHOR).setPreferredWidth(AUTHOR_WIDTH);
         table.getColumnModel().getColumn(STATUS).setPreferredWidth(STATUS_WIDTH);
         table.getColumnModel().getColumn(STATUS).setCellRenderer(new StatusRenderer());
-        table.getSelectionModel().addListSelectionListener(e -> updateUninstall());
-        clickConfirmed.setRepeats(false);
+        table.getColumnModel().getColumn(TRASH).setPreferredWidth(TRASH_WIDTH);
+        table.getColumnModel().getColumn(TRASH).setMaxWidth(TRASH_WIDTH);
+        table.getColumnModel().getColumn(TRASH).setCellRenderer(new TrashRenderer(iconFont));
         // Enter runs the selected app, as a double click does; it replaces the table's default of
         // moving to the next row, and keeps Enter from pressing Close.
         table.getInputMap(JComponent.WHEN_FOCUSED)
@@ -177,25 +178,31 @@ public class ServiceAppManagerDialog extends JDialog {
                                 invokeAt(table.getSelectedRow());
                             }
                         });
+        for (int key : new int[] {KeyEvent.VK_DELETE, KeyEvent.VK_BACK_SPACE}) {
+            table.getInputMap(JComponent.WHEN_FOCUSED)
+                    .put(KeyStroke.getKeyStroke(key, 0), "uninstallSelected");
+        }
+        table.getActionMap()
+                .put(
+                        "uninstallSelected",
+                        new AbstractAction() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                selected().ifPresent(ServiceAppManagerDialog.this::uninstall);
+                            }
+                        });
         table.addMouseListener(
                 new MouseAdapter() {
                     @Override
-                    public void mousePressed(MouseEvent e) {
-                        // The table has already selected the row; hold its highlight back.
-                        if (e.getClickCount() == 1 && table.rowAtPoint(e.getPoint()) >= 0) {
-                            clickPending = true;
-                            clickConfirmed.restart();
-                            updateUninstall();
-                        } else if (e.getClickCount() >= 2) {
-                            clickConfirmed.stop();
-                        }
-                    }
-
-                    @Override
                     public void mouseClicked(MouseEvent e) {
-                        if (e.getClickCount() == 2 && !invokeAt(table.rowAtPoint(e.getPoint()))) {
-                            // Nothing to run: the clicks select the row after all.
-                            confirmClick();
+                        int row = table.rowAtPoint(e.getPoint());
+                        if (table.columnAtPoint(e.getPoint()) == TRASH) {
+                            // The second click of a double click on the trashcan asks nothing more.
+                            if (e.getClickCount() == 1 && row >= 0) {
+                                uninstall(tableModel.rows.get(row));
+                            }
+                        } else if (e.getClickCount() == 2) {
+                            invokeAt(row);
                         }
                     }
                 });
@@ -205,13 +212,10 @@ public class ServiceAppManagerDialog extends JDialog {
         content.add(scroll, TABLE_CARD);
         content.add(emptyState(appStore, openUrl), EMPTY_CARD);
 
-        uninstall.setName("uninstall");
-        uninstall.addActionListener(e -> selected().ifPresent(this::uninstall));
         JButton close = new JButton("Close");
         close.setName("close");
         close.addActionListener(e -> dispose());
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttons.add(uninstall);
         buttons.add(close);
 
         JPanel root = new JPanel(new BorderLayout());
@@ -220,8 +224,7 @@ public class ServiceAppManagerDialog extends JDialog {
         root.add(buttons, BorderLayout.SOUTH);
         setContentPane(root);
 
-        // A click anywhere other than on a row clears the highlight. Uninstall, which acts on the
-        // highlighted row, has no such listener.
+        // A click anywhere other than on a row clears the selection.
         MouseAdapter deselect =
                 new MouseAdapter() {
                     @Override
@@ -261,7 +264,6 @@ public class ServiceAppManagerDialog extends JDialog {
                 new WindowAdapter() {
                     @Override
                     public void windowClosed(WindowEvent e) {
-                        clickConfirmed.stop();
                         model.close();
                     }
                 });
@@ -337,7 +339,7 @@ public class ServiceAppManagerDialog extends JDialog {
         return centered;
     }
 
-    /** Re-reads the rows, keeping the highlighted app highlighted. Runs on the EDT. */
+    /** Re-reads the rows, keeping the selected app selected. Runs on the EDT. */
     void reload() {
         String selectedName = selected().map(ServiceAppManagerModel.Row::name).orElse(null);
         tableModel.setRows(model.rows());
@@ -348,7 +350,6 @@ public class ServiceAppManagerDialog extends JDialog {
         }
         shownCard = tableModel.rows.isEmpty() ? EMPTY_CARD : TABLE_CARD;
         cards.show(content, shownCard);
-        updateUninstall();
     }
 
     private Optional<ServiceAppManagerModel.Row> selected() {
@@ -356,31 +357,6 @@ public class ServiceAppManagerDialog extends JDialog {
         return row < 0 || row >= tableModel.rows.size()
                 ? Optional.empty()
                 : Optional.of(tableModel.rows.get(row));
-    }
-
-    private void confirmClick() {
-        clickConfirmed.stop();
-        clickPending = false;
-        table.repaint();
-        updateUninstall();
-    }
-
-    /** The system's double-click interval, or half a second when it doesn't say. */
-    private static int doubleClickInterval() {
-        Object interval = Toolkit.getDefaultToolkit().getDesktopProperty("awt.multiClickInterval");
-        return interval instanceof Integer ms && ms > 0 ? ms : 500;
-    }
-
-    /** The highlighted row: selected, and not waiting to see whether a second click comes. */
-    private Optional<ServiceAppManagerModel.Row> highlighted() {
-        return clickPending ? Optional.empty() : selected();
-    }
-
-    private void updateUninstall() {
-        Optional<ServiceAppManagerModel.Row> row = highlighted();
-        uninstall.setEnabled(row.isPresent());
-        uninstall.setToolTipText(
-                row.map(r -> "Uninstall " + r.name()).orElse("Select a service app first"));
     }
 
     /** Why the app can't be invoked now, or null when it can. */
@@ -408,7 +384,6 @@ public class ServiceAppManagerDialog extends JDialog {
         if (invokeBlocker(app) != null) {
             return false;
         }
-        clickPending = false;
         table.clearSelection();
         invoking = app.name();
         table.repaint();
@@ -423,10 +398,6 @@ public class ServiceAppManagerDialog extends JDialog {
                     }
                 });
         return true;
-    }
-
-    public JButton uninstallButton() {
-        return uninstall;
     }
 
     public JTable table() {
@@ -466,9 +437,7 @@ public class ServiceAppManagerDialog extends JDialog {
         component.setBackground(
                 data.name().equals(invoking)
                         ? INVOKING_BACKGROUND
-                        : table.isRowSelected(row) && !clickPending
-                                ? SELECTED_BACKGROUND
-                                : table.getBackground());
+                        : table.isRowSelected(row) ? SELECTED_BACKGROUND : table.getBackground());
         if (column == NAME) {
             component.setForeground(table.getForeground());
             String blocker = invokeBlocker(data);
@@ -486,6 +455,8 @@ public class ServiceAppManagerDialog extends JDialog {
             component.setToolTipText(PlainText.tooltip(data.description(), TOOLTIP_WIDTH));
         } else if (column == AUTHOR) {
             component.setToolTipText(PlainText.tooltip(data.author()));
+        } else if (column == TRASH) {
+            component.setToolTipText(PlainText.tooltip("Uninstall " + data.name()));
         } else {
             component.setToolTipText(PlainText.tooltip(data.statusDetail()));
         }
@@ -515,9 +486,35 @@ public class ServiceAppManagerDialog extends JDialog {
         }
     }
 
+    /** The trashcan, centered, in Desktop's icon font. */
+    private static final class TrashRenderer extends DefaultTableCellRenderer {
+        TrashRenderer(Font iconFont) {
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setFont(iconFont);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column) {
+            super.getTableCellRendererComponent(
+                    table, IconManager.ICON_TRASH_O, isSelected, hasFocus, row, column);
+            setForeground(table.getForeground());
+            return this;
+        }
+    }
+
+    /** The question asked before an app is uninstalled. */
+    static String uninstallQuestion(String name) {
+        return "Are you sure you want to uninstall " + name + "?";
+    }
+
     private void uninstall(ServiceAppManagerModel.Row row) {
-        String question = "Uninstall " + row.name() + "? Are you sure?";
-        if (confirmer.confirm(this, "Uninstall Service App", question)) {
+        if (confirmer.confirm(this, "Uninstall Service App", uninstallQuestion(row.name()))) {
             // The registry event reloads the table.
             model.uninstall(row.name());
         }
@@ -525,7 +522,7 @@ public class ServiceAppManagerDialog extends JDialog {
 
     private final class RowsTableModel extends AbstractTableModel {
 
-        private final String[] columns = {"Name", "Description", "Author", "Status"};
+        private final String[] columns = {"Name", "Description", "Author", "Status", ""};
         private List<ServiceAppManagerModel.Row> rows = List.of();
 
         void setRows(List<ServiceAppManagerModel.Row> rows) {
@@ -555,7 +552,8 @@ public class ServiceAppManagerDialog extends JDialog {
                 case NAME -> data.name();
                 case DESCRIPTION -> data.description();
                 case AUTHOR -> data.author();
-                default -> data.status().text();
+                case STATUS -> data.status().text();
+                default -> IconManager.ICON_TRASH_O;
             };
         }
     }

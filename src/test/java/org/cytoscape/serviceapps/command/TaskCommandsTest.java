@@ -36,6 +36,7 @@ import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
 import org.cytoscape.serviceapps.run.ServiceAppRunRegistry;
 import org.cytoscape.serviceapps.testsupport.ContractNetwork;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
+import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.util.swing.OpenBrowser;
 import org.cytoscape.view.model.CyNetworkViewManager;
@@ -88,7 +89,7 @@ class TaskCommandsTest {
                                         url,
                                         new JdkHttpTransport(
                                                 Duration.ofSeconds(5), Duration.ofSeconds(10))),
-                        new RequestBuilder(cx2),
+                        new RequestBuilder(cx2, TestNdex.link()),
                         RenderServiceAppUI.standard(
                                 views, mock(OpenBrowser.class), cx2, applications),
                         () -> new RunSettings(Duration.ofMillis(10), Duration.ofSeconds(20)),

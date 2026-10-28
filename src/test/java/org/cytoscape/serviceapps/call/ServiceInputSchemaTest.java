@@ -73,8 +73,9 @@ class ServiceInputSchemaTest {
             Parameter parameter = meta.parameters().get(i);
             String key = parameterKeys.get(i);
             JsonObject property = parameters.getAsJsonObject("properties").getAsJsonObject(key);
-            if (Parameter.UNSUPPORTED_TYPES.contains(parameter.type)) {
-                assertNull(property, "unsupported types are left out: " + key);
+            if (Parameter.UNSUPPORTED_TYPES.contains(parameter.type)
+                    || Parameter.NDEX_UUID.equals(parameter.type)) {
+                assertNull(property, "unsupported and Desktop-filled types are left out: " + key);
                 continue;
             }
             assertNotNull(property, key);

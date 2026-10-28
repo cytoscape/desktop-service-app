@@ -206,10 +206,21 @@ public final class ScenarioCatalog {
         hidden.addProperty("showDescriptionInDialog", false);
         add(all, "description-hidden", hidden);
 
+        // An ndexUUID parameter, which Desktop fills with the network's NDEx URL, beside one the
+        // user fills
+        add(
+                all,
+                "param-ndex-uuid",
+                withParams(
+                        param("NDEx network", "ndexUUID").build(),
+                        param("K", "text")
+                                .add("validationType", "number")
+                                .add("defaultValue", "10")
+                                .build()));
+
         // Unsupported inputs
         add(all, "unsupported-file", withParams(param("Input file", "file").build()));
         add(all, "unsupported-access-token", withParams(param("Token", "accessToken").build()));
-        add(all, "unsupported-ndex-uuid", withParams(param("Network", "ndexUUID").build()));
         add(all, "unsupported-edgelist", inputNetwork("network", "edgelist"));
 
         // Menu placement

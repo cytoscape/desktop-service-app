@@ -41,8 +41,8 @@ import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.serviceapps.ui.DesktopColors;
+import org.cytoscape.util.swing.IconManager;
 
-import static org.cytoscape.serviceapps.testsupport.Waits.until;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -99,6 +99,7 @@ class ServiceAppManagerDialogTest {
                                             questions.add(question);
                                             return confirm;
                                         },
+                                        new JLabel().getFont(),
                                         appStore,
                                         opened::add));
     }
@@ -177,8 +178,8 @@ class ServiceAppManagerDialogTest {
 
     /**
      * A double click at the middle of {@code name}'s row, as Swing delivers it: a press, a second
-     * press, then the click. Fails if the row shows the red highlight at any point on the way.
-     * Returns what the dialog shows right after, before any queued work such as the launch runs.
+     * press, then the click. Returns what the dialog shows right after, before any queued work such
+     * as the launch runs.
      */
     private String doubleClick(String name) throws Exception {
         int row = rowOf(name);
@@ -195,13 +196,10 @@ class ServiceAppManagerDialogTest {
                     mouse(table(), MouseEvent.MOUSE_CLICKED, x, y, 2);
                     states.add(rowState(row));
                 });
-        for (String state : states.subList(0, 2)) {
-            assertFalse(state.startsWith("red"), "no red flash before the second click: " + states);
-        }
         return states.get(2);
     }
 
-    /** The row's color name, the selected row and the Uninstall state. Runs on the EDT. */
+    /** The row's color name and the selected row. Runs on the EDT. */
     private String rowState(int row) {
         Color color =
                 table().prepareRenderer(
@@ -213,15 +211,11 @@ class ServiceAppManagerDialogTest {
                 color.equals(ServiceAppManagerDialog.INVOKING_BACKGROUND)
                         ? "blue"
                         : color.equals(ServiceAppManagerDialog.SELECTED_BACKGROUND)
-                                ? "red"
+                                ? "grey"
                                 : color.equals(table().getBackground())
                                         ? "plain"
                                         : color.toString();
-        return name
-                + ", selected row "
-                + table().getSelectedRow()
-                + ", uninstall "
-                + dialog.uninstallButton().isEnabled();
+        return name + ", selected row " + table().getSelectedRow();
     }
 
     /** The background of {@code name}'s cells, both columns checked to agree. */
@@ -331,7 +325,7 @@ class ServiceAppManagerDialogTest {
 
         assertTrue(dialog.showsTable());
         assertEquals(
-                List.of("Name", "Description", "Author", "Status"),
+                List.of("Name", "Description", "Author", "Status", ""),
                 IntStream.range(0, table().getColumnCount())
                         .mapToObj(table()::getColumnName)
                         .toList());
@@ -443,20 +437,35 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
-    void onlyUninstallSitsLeftOfCloseAndStartsDisabled() throws Exception {
+    void onlyCloseSitsBelowTheTable() throws Exception {
         f.install("hello");
         open();
 
-        Container buttons = dialog.uninstallButton().getParent();
+        Container buttons = ((JButton) find(dialog.getContentPane(), "close")).getParent();
         assertEquals(
-                List.of("Uninstall", "Close"),
+                List.of("Close"),
                 Arrays.stream(buttons.getComponents()).map(c -> ((JButton) c).getText()).toList());
-        assertFalse(dialog.uninstallButton().isEnabled());
-        assertEquals("Select a service app first", dialog.uninstallButton().getToolTipText());
+        assertNull(find(dialog.getContentPane(), "uninstall"), "the Uninstall button is gone");
     }
 
     @Test
-    void aSingleClickHighlightsTheRowLightRedAndEnablesUninstall() throws Exception {
+    void everyRowEndsWithATrashcanThatSaysWhatItUninstalls() throws Exception {
+        String hello = f.install("hello");
+        String offline = f.installOffline("Offline app");
+        open();
+
+        assertEquals(5, table().getColumnCount());
+        assertEquals("", table().getColumnName(ServiceAppManagerDialog.TRASH));
+        for (String name : List.of(hello, offline)) {
+            JLabel trash = cell(name, ServiceAppManagerDialog.TRASH);
+            assertEquals(IconManager.ICON_TRASH_O, trash.getText());
+            assertEquals(SwingConstants.CENTER, trash.getHorizontalAlignment());
+            assertEquals("Uninstall " + name, tooltip(rowOf(name), ServiceAppManagerDialog.TRASH));
+        }
+    }
+
+    @Test
+    void aSingleClickShadesTheRowLightGreyAtOnce() throws Exception {
         String hello = f.install("hello");
         String offline = f.installOffline("Offline app");
         open();
@@ -466,25 +475,18 @@ class ServiceAppManagerDialogTest {
         for (String name : List.of(hello, offline)) {
             Rectangle row = table().getCellRect(rowOf(name), ServiceAppManagerDialog.NAME, true);
             press(table(), row.x + 2, row.y + row.height / 2);
-            assertEquals(
-                    "plain, selected row " + rowOf(name) + ", uninstall false",
-                    state(name),
-                    "held back while a second click may come");
 
-            until(() -> dialog.uninstallButton().isEnabled());
-
-            assertEquals(rowOf(name), table().getSelectedRow());
+            assertEquals("grey, selected row " + rowOf(name), state(name));
             assertEquals(ServiceAppManagerDialog.SELECTED_BACKGROUND, background(name));
-            assertTrue(dialog.uninstallButton().isEnabled());
-            assertEquals("Uninstall " + name, dialog.uninstallButton().getToolTipText());
-            // Status keeps its color on the light highlight.
+            // Status keeps its color on the grey.
             assertEquals(
                     name.equals(hello) ? DesktopColors.success() : DesktopColors.error(),
                     statusCell(name).getForeground());
-            assertTrue(statusCell(name).getFont().isBold(), "still bold when highlighted");
+            assertTrue(statusCell(name).getFont().isBold(), "still bold when selected");
             assertEquals(table().getForeground(), nameCell(name).getForeground());
         }
         assertEquals(table().getBackground(), background(hello), "the other row is cleared");
+        assertTrue(questions.isEmpty(), "a click on a row asks nothing");
     }
 
     @Test
@@ -497,18 +499,18 @@ class ServiceAppManagerDialogTest {
         select(hello);
         List<String> launches = recordLaunches(hello);
 
-        assertEquals("red, selected row 0, uninstall true", state(hello));
+        assertEquals("grey, selected row 0", state(hello));
 
-        assertEquals("blue, selected row -1, uninstall false", doubleClick(hello));
+        assertEquals("blue, selected row -1", doubleClick(hello));
         flush();
 
         assertEquals(
-                List.of(hello + ": blue, selected row -1, uninstall false"),
+                List.of(hello + ": blue, selected row -1"),
                 launches,
                 "launched once, with the row light blue while its form is open");
         verify(f.launcher, times(1)).launch(hello);
         assertNull(dialog.invoking(), "the form has closed");
-        assertEquals("plain, selected row -1, uninstall false", state(hello));
+        assertEquals("plain, selected row -1", state(hello));
         assertTrue(dialog.isDisplayable());
     }
 
@@ -527,7 +529,7 @@ class ServiceAppManagerDialogTest {
                     Thread.currentThread().setUncaughtExceptionHandler((t, e) -> thrown.add(e));
                 });
         try {
-            assertEquals("blue, selected row -1, uninstall false", doubleClick(hello));
+            assertEquals("blue, selected row -1", doubleClick(hello));
             flush();
         } finally {
             onEdt(() -> Thread.currentThread().setUncaughtExceptionHandler(previous[0]));
@@ -536,7 +538,7 @@ class ServiceAppManagerDialogTest {
         assertEquals(1, thrown.size(), "the failure still reaches the EDT's handler");
         assertEquals("boom", thrown.get(0).getMessage());
         assertNull(dialog.invoking());
-        assertEquals("plain, selected row -1, uninstall false", state(hello));
+        assertEquals("plain, selected row -1", state(hello));
     }
 
     /**
@@ -568,12 +570,12 @@ class ServiceAppManagerDialogTest {
         select(hello);
         List<String> launches = recordLaunches(hello);
 
-        assertEquals("blue, selected row -1, uninstall false", pressEnter(hello));
+        assertEquals("blue, selected row -1", pressEnter(hello));
         flush();
 
-        assertEquals(List.of(hello + ": blue, selected row -1, uninstall false"), launches);
+        assertEquals(List.of(hello + ": blue, selected row -1"), launches);
         verify(f.launcher, times(1)).launch(hello);
-        assertEquals("plain, selected row -1, uninstall false", state(hello));
+        assertEquals("plain, selected row -1", state(hello));
     }
 
     @Test
@@ -588,7 +590,7 @@ class ServiceAppManagerDialogTest {
         for (String name : List.of(checking, offline)) {
             select(name);
             assertEquals(
-                    "red, selected row " + rowOf(name) + ", uninstall true",
+                    "grey, selected row " + rowOf(name) + "",
                     pressEnter(name),
                     "still selected, nothing run: " + name);
         }
@@ -629,7 +631,7 @@ class ServiceAppManagerDialogTest {
 
         for (String name : List.of(offline, unsupported)) {
             assertEquals(
-                    "red, selected row " + rowOf(name) + ", uninstall true",
+                    "grey, selected row " + rowOf(name) + "",
                     doubleClick(name),
                     "nothing runs; the clicks select the row");
         }
@@ -661,41 +663,51 @@ class ServiceAppManagerDialogTest {
                 "the status tooltip says what the check found");
     }
 
+    /** A click on {@code name}'s trashcan, as Swing delivers it. */
+    private void clickTrash(String name, int clicks) throws Exception {
+        Rectangle cell = table().getCellRect(rowOf(name), ServiceAppManagerDialog.TRASH, true);
+        int x = cell.x + cell.width / 2;
+        int y = cell.y + cell.height / 2;
+        onEdt(
+                () -> {
+                    for (int click = 1; click <= clicks; click++) {
+                        mouse(table(), MouseEvent.MOUSE_PRESSED, x, y, click);
+                        mouse(table(), MouseEvent.MOUSE_CLICKED, x, y, click);
+                    }
+                });
+    }
+
     @Test
-    void cancellingUninstallChangesNothing() throws Exception {
+    void answeringNoToTheTrashcanChangesNothing() throws Exception {
         String hello = f.install("hello");
         open();
         confirm = false;
-        select(hello);
 
-        onEdt(dialog.uninstallButton()::doClick);
+        clickTrash(hello, 1);
         flush();
 
-        assertEquals(List.of("Uninstall " + hello + "? Are you sure?"), questions);
+        assertEquals(List.of("Are you sure you want to uninstall " + hello + "?"), questions);
         verify(f.registry, never()).uninstall(anyString());
         assertEquals(1, table().getRowCount());
         assertEquals(0, table().getSelectedRow(), "still selected");
     }
 
     @Test
-    void confirmingUninstallRemovesTheRowAndTheLastOneShowsTheLabel() throws Exception {
+    void answeringYesRemovesTheRowAndTheLastOneShowsTheLabel() throws Exception {
         String hello = f.install("hello");
         String other = f.install("menu-root-apps");
         open();
         confirm = true;
-        select(hello);
 
-        onEdt(dialog.uninstallButton()::doClick);
+        clickTrash(hello, 1);
         flush();
 
         verify(f.registry).uninstall(hello);
         assertEquals(1, table().getRowCount());
         assertEquals(-1, table().getSelectedRow());
-        assertFalse(dialog.uninstallButton().isEnabled());
         assertTrue(dialog.isDisplayable());
 
-        select(other);
-        onEdt(dialog.uninstallButton()::doClick);
+        clickTrash(other, 1);
         flush();
 
         assertFalse(dialog.showsTable());
@@ -703,7 +715,55 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
-    void clickingAnywhereButTheHighlightedRowClearsItAndUninstall() throws Exception {
+    void aDoubleClickOnTheTrashcanAsksOnceAndRunsNothing() throws Exception {
+        String hello = f.install("hello");
+        open();
+        f.checks.runAll();
+        flush();
+        confirm = false;
+
+        clickTrash(hello, 2);
+        flush();
+
+        assertEquals(List.of("Are you sure you want to uninstall " + hello + "?"), questions);
+        verify(f.launcher, never()).launch(anyString());
+    }
+
+    @Test
+    void deleteOrBackspaceOnTheSelectedRowAsksToUninstallIt() throws Exception {
+        String hello = f.install("hello");
+        open();
+        confirm = false;
+
+        onEdt(() -> pressKey(KeyEvent.VK_DELETE));
+        assertTrue(questions.isEmpty(), "nothing selected, nothing asked");
+
+        select(hello);
+        onEdt(() -> pressKey(KeyEvent.VK_DELETE));
+        onEdt(() -> pressKey(KeyEvent.VK_BACK_SPACE));
+        assertEquals(
+                List.of(
+                        "Are you sure you want to uninstall " + hello + "?",
+                        "Are you sure you want to uninstall " + hello + "?"),
+                questions);
+
+        confirm = true;
+        onEdt(() -> pressKey(KeyEvent.VK_DELETE));
+        flush();
+        verify(f.registry).uninstall(hello);
+    }
+
+    /** Delete or Backspace on the table, through the binding the table holds for it. */
+    private void pressKey(int key) {
+        Object action =
+                table().getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key, 0));
+        table().getActionMap()
+                .get(action)
+                .actionPerformed(new ActionEvent(table(), ActionEvent.ACTION_PERFORMED, ""));
+    }
+
+    @Test
+    void clickingAnywhereButASelectedRowClearsTheSelection() throws Exception {
         String hello = f.install("hello");
         String other = f.install("menu-root-apps");
         open();
@@ -720,18 +780,16 @@ class ServiceAppManagerDialogTest {
             scroll.getViewport(),
             scroll.getParent(), // the content panel
             dialog.getContentPane(),
-            dialog.uninstallButton().getParent()
+            find(dialog.getContentPane(), "close").getParent()
         };
 
         for (Component area : elsewhere) {
             select(hello);
-            assertTrue(dialog.uninstallButton().isEnabled());
             int y = area == table ? table.getHeight() - 2 : 2;
 
             press(area, 2, y);
 
             assertEquals(-1, table.getSelectedRow(), "cleared by a click on " + area);
-            assertFalse(dialog.uninstallButton().isEnabled());
             assertEquals(table.getBackground(), background(hello));
         }
 
@@ -740,9 +798,6 @@ class ServiceAppManagerDialogTest {
         press(table, row.x + 2, row.y + row.height / 2);
         assertEquals(rowOf(other), table.getSelectedRow(), "a click on another row moves it");
         assertEquals(table.getBackground(), background(hello));
-
-        press(dialog.uninstallButton(), 2, 2);
-        assertEquals(rowOf(other), table.getSelectedRow(), "Uninstall keeps the row it acts on");
     }
 
     @Test
@@ -761,7 +816,7 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
-    void theHighlightFollowsItsAppWhenAnotherAppSortsInAboveIt() throws Exception {
+    void theSelectionFollowsItsAppWhenAnotherAppSortsInAboveIt() throws Exception {
         String hello = f.install("hello");
         open();
         select(hello);
@@ -772,7 +827,6 @@ class ServiceAppManagerDialogTest {
 
         assertEquals(1, rowOf(hello));
         assertEquals(rowOf(hello), table().getSelectedRow(), "still the same app");
-        assertEquals("Uninstall " + hello, dialog.uninstallButton().getToolTipText());
         assertEquals(0, rowOf(earlier));
     }
 
@@ -853,6 +907,7 @@ class ServiceAppManagerDialogTest {
                                         null,
                                         f.model(),
                                         Confirmer.OPTION_PANE,
+                                        new JLabel().getFont(),
                                         AppStoreLink.from(null),
                                         opened::add));
         assertEquals("Apps.Service Apps", action.getPreferredMenu());

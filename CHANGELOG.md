@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Parity with Cytoscape Web's newer service app metadata.
 
+### Changed
+
+- **Uninstalling from the manager.** Each row ends with a trashcan, which asks "Are you sure you
+want to uninstall <name>?" with Yes and No. The Uninstall button and the light red row highlight
+are gone; a selected row is light grey, and Delete or Backspace uninstalls it after the same
+question ([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
+
 ### Fixed
 
 - **`columnTypeFilter` given as a list.** A service app whose column picker names several column
@@ -19,6 +26,11 @@ node table and no longer needs an open network: it is sent `data: {}`, as in Cyt
 
 ### Added
 
+- **Parameter type `ndexUUID`.** A service app that asks for the network's NDEx address now runs.
+Desktop fills the value itself, as Cytoscape Web does: the network's NDEx URL when it came from or
+was saved to NDEx and is unchanged since, and an empty value otherwise. The NDEx server is the new
+`ndex.base.url` setting
+([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
 - **Parameter `groups`.** Grouped parameters are shown in nested, titled sections of the dialog.
 Parameters that share a display name are keyed by their groups and name, such as `Nodes/Gap`, as
 Cytoscape Web keys them, so one no longer overwrites the other.
