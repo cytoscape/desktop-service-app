@@ -66,7 +66,7 @@ Some service apps ask for the NDEx address of the network they work on, with an 
 
 An empty value tells the app the network lives only in Desktop, and the run goes ahead, as in Cytoscape Web. Community Detection, for example, still clusters the network you sent, and links its result to that network by name rather than to the NDEx copy. Save the network to NDEx first if you want the result linked to it there.
 
-Desktop knows a network's NDEx UUID from the CyNDEx-2 app, which records it on every import and save. A change means any added or removed node or edge, or any changed value in the node or edge tables; selecting nodes isn't a change. Changes are counted from when Cytoscape starts or the session is opened. The NDEx server in the address is the `ndex.base.url` [setting](#settings).
+Desktop knows a network's NDEx UUID from the CyNDEx-2 app, which records it on every import and save. A change means any added or removed node or edge, or any changed value in the node or edge tables; selecting nodes isn't a change. Changes are counted from when the Desktop Service App starts, or from when the session is opened. The NDEx server in the address is the `ndex.base.url` [setting](#settings).
 
 Click **OK** and the network you were looking at is sent to the service: the whole network, or only the selected nodes and edges when the app works on a selection. An app that takes no data (its input type is missing or `none`) gets only its inputs, and runs without a network open. The progress bar follows the service. When the service is done, its result is applied to that same network, even if you've switched to another one in the meantime.
 
@@ -95,7 +95,7 @@ It is also greyed out when the app can't run at all. Then its tooltip ends with 
 | *(trashcan)* | Click to uninstall that app. |
 
 - **Double-click** an app's row, or select it and press **Enter**, to run it, opening the same dialog as its menu entry. The row turns light blue until the dialog closes. A double click does nothing while the app is **Checking…** or **Offline**, or when Desktop can't run it; hover over the name to see why.
-- **Click the trashcan** at the end of an app's row to uninstall it. You are asked `Are you sure you want to uninstall <name>?`; **Yes** removes the app, and **No** leaves everything as it was. With a row selected, **Delete** or **Backspace** asks the same.
+- **Click the trashcan** at the end of an app's row to uninstall it. You are asked `Are you sure you want to uninstall <name>?`; **Yes** removes the app, and **No** leaves everything as it was.
 - **Click** a row to select it; it turns light grey. Clicking anywhere else in the manager clears the selection.
 
 The manager stays open while you work and updates on its own when apps are installed or removed elsewhere, such as from the App Store page. Close it with **Close**, the window's close button, or Escape. With no service apps installed, it says **No Service Apps installed**, with a link that opens the App Store's service apps page in your web browser so you can choose one to install: [apps.cytoscape.org/apps/platform/service/](https://apps.cytoscape.org/apps/platform/service/), or the same page on the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property (**Edit > Preferences > Properties**, `cytoscape3`), when that is set. If you already know a service app's URL, it also shows the command to install it from the Command Line (**View > Show Command Panel**): `serviceapps install url=<service URL>`.

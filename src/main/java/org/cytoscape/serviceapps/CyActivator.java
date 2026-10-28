@@ -18,7 +18,6 @@ import org.cytoscape.application.swing.CyAction;
 import org.cytoscape.application.swing.CySwingApplication;
 import org.cytoscape.io.read.InputStreamTaskFactory;
 import org.cytoscape.io.write.CyNetworkViewWriterFactory;
-import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNetworkManager;
 import org.cytoscape.model.CyNetworkTableManager;
 import org.cytoscape.property.CyProperty;
@@ -52,8 +51,7 @@ import org.cytoscape.serviceapps.manager.ServiceAppManagerDialog;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerModel;
 import org.cytoscape.serviceapps.menu.EmptySubmenus;
 import org.cytoscape.serviceapps.menu.ServiceAppLifecycle;
-import org.cytoscape.serviceapps.ndex.NdexLink;
-import org.cytoscape.serviceapps.ndex.NetworkEditTracker;
+import org.cytoscape.serviceapps.ndex.NdexSupport;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.render.RenderServiceAppUI;
 import org.cytoscape.serviceapps.request.RequestBuilder;
@@ -161,24 +159,17 @@ public class CyActivator extends AbstractCyActivator {
         Consumer<String> openUrl = url -> browser.openURL(url, false);
         FormSpecBuilder forms = new FormSpecBuilder();
         ActiveRuns active = new ActiveRuns();
-        NetworkEditTracker edits =
-                new NetworkEditTracker(getService(bc, CyNetworkTableManager.class));
-        for (CyNetwork network : networkManager.getNetworkSet()) {
-            edits.markSaved(network);
-        }
-        registerAllServices(bc, edits, new Properties());
-        NdexLink ndex =
-                new NdexLink(
-                        () ->
-                                properties
-                                        .getProperties()
-                                        .getProperty(NdexLink.BASE_URL, NdexLink.DEFAULT_BASE_URL),
-                        edits::edited);
+        NdexSupport ndex =
+                NdexSupport.start(
+                        networkManager,
+                        getService(bc, CyNetworkTableManager.class),
+                        properties::getProperties);
+        registerAllServices(bc, ndex.listener(), new Properties());
         ServiceAppRunFactory runs =
                 new ServiceAppRunFactory(
                         registry,
                         clients,
-                        new RequestBuilder(cx2, ndex),
+                        new RequestBuilder(cx2, ndex.link()),
                         RenderServiceAppUI.standard(viewManager, browser, cx2, applications),
                         () -> RunSettings.from(properties.getProperties()),
                         active);

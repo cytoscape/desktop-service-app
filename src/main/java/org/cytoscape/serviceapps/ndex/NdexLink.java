@@ -1,5 +1,7 @@
 package org.cytoscape.serviceapps.ndex;
 
+import java.util.Locale;
+import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -55,15 +57,33 @@ public class NdexLink {
         return url(baseUrl.get(), uuid);
     }
 
-    /** The UUID CyNDEx-2 stored for {@code network}, or null. */
+    /**
+     * The UUID CyNDEx-2 stored for {@code network}, in lower case, or null. Any app or session file
+     * can write the column, so a value that is a UUID in canonical form is the only one used; the
+     * network counts as local otherwise.
+     */
     public static String uuidOf(CyNetwork network) {
         CyTable hidden = network.getTable(CyNetwork.class, CyNetwork.HIDDEN_ATTRS);
         if (hidden == null || hidden.getColumn(UUID_COLUMN) == null) {
             return null;
         }
         CyRow row = hidden.getRow(network.getSUID());
-        String uuid = row == null ? null : row.get(UUID_COLUMN, String.class);
-        return uuid == null || uuid.isBlank() ? null : uuid.strip();
+        String stored = row == null ? null : row.get(UUID_COLUMN, String.class);
+        return canonical(stored);
+    }
+
+    /** {@code text} as a lower-case UUID, or null when it is anything else. */
+    static String canonical(String text) {
+        if (text == null) {
+            return null;
+        }
+        String lower = text.strip().toLowerCase(Locale.ROOT);
+        try {
+            // fromString accepts short groups such as "1-2-3-4-5"; the round trip keeps them out.
+            return UUID.fromString(lower).toString().equals(lower) ? lower : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** {@code <base>/v3/networks/<uuid>}, with any trailing slash on the base dropped. */

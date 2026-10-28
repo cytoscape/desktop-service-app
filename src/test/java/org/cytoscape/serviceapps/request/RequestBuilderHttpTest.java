@@ -110,7 +110,8 @@ class RequestBuilderHttpTest {
         CyNetwork network = TestNetworks.withEveryColumnType();
         CyTable hidden = network.getTable(CyNetwork.class, CyNetwork.HIDDEN_ATTRS);
         hidden.createColumn(NdexLink.UUID_COLUMN, String.class, false);
-        hidden.getRow(network.getSUID()).set(NdexLink.UUID_COLUMN, "u-1");
+        hidden.getRow(network.getSUID())
+                .set(NdexLink.UUID_COLUMN, "6f1b4ca6-0f2a-11ef-9a1f-005056ae23aa");
         NetworkEditTracker edits =
                 new NetworkEditTracker(TestNetworks.support().getNetworkTableManager());
         edits.markSaved(network);
@@ -122,7 +123,7 @@ class RequestBuilderHttpTest {
         JsonObject edited = submitAndRead(fixture, "param-ndex-uuid", input, network, ndex);
 
         assertEquals(
-                "https://ndex.example/v3/networks/u-1",
+                "https://ndex.example/v3/networks/6f1b4ca6-0f2a-11ef-9a1f-005056ae23aa",
                 saved.getAsJsonObject("parameters").get("NDEx network").getAsString());
         assertEquals("", edited.getAsJsonObject("parameters").get("NDEx network").getAsString());
         assertEquals("10", edited.getAsJsonObject("parameters").get("K").getAsString());

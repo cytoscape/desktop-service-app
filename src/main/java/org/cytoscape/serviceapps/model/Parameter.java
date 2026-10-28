@@ -23,7 +23,7 @@ public class Parameter {
 
     /**
      * Types the spec marks experimental, "do not use". {@code ndexUUID} is supported: Desktop fills
-     * it with the network's NDEx URL, and the user never sees it.
+     * it with the network's NDEx URL, out of the user's sight.
      */
     public static final List<String> UNSUPPORTED_TYPES = List.of(FILE, ACCESS_TOKEN);
 

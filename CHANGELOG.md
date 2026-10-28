@@ -13,8 +13,8 @@ Parity with Cytoscape Web's newer service app metadata.
 
 - **Uninstalling from the manager.** Each row ends with a trashcan, which asks "Are you sure you
 want to uninstall <name>?" with Yes and No. The Uninstall button and the light red row highlight
-are gone; a selected row is light grey, and Delete or Backspace uninstalls it after the same
-question ([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
+are gone, and a selected row is light grey
+([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
 
 ### Fixed
 

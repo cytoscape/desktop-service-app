@@ -74,6 +74,29 @@ class NdexLinkTest {
     }
 
     @Test
+    void aValueThatIsNotACanonicalUuidCountsAsLocal() {
+        NdexLink link = link(NdexLink.DEFAULT_BASE_URL);
+
+        for (String stored :
+                List.of(
+                        "x/../../other?y",
+                        UUID + "/extra",
+                        "1-2-3-4-5",
+                        "6f1b4ca6-0f2a-11ef-9a1f-005056ae23aaa",
+                        "not a uuid")) {
+            assertEquals("", link.networkUrl(withUuid(stored)), stored);
+            assertNull(NdexLink.uuidOf(withUuid(stored)), stored);
+        }
+    }
+
+    @Test
+    void anUpperCaseUuidIsSentInLowerCase() {
+        assertEquals(
+                "https://www.ndexbio.org/v3/networks/" + UUID,
+                link(NdexLink.DEFAULT_BASE_URL).networkUrl(withUuid(UUID.toUpperCase())));
+    }
+
+    @Test
     void readsTheUuidCyNdex2Stored() {
         assertEquals(UUID, NdexLink.uuidOf(withUuid(UUID)));
         assertNull(NdexLink.uuidOf(TestNetworks.withEveryColumnType()));

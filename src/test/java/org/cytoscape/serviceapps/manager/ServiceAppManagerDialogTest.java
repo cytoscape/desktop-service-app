@@ -730,39 +730,6 @@ class ServiceAppManagerDialogTest {
     }
 
     @Test
-    void deleteOrBackspaceOnTheSelectedRowAsksToUninstallIt() throws Exception {
-        String hello = f.install("hello");
-        open();
-        confirm = false;
-
-        onEdt(() -> pressKey(KeyEvent.VK_DELETE));
-        assertTrue(questions.isEmpty(), "nothing selected, nothing asked");
-
-        select(hello);
-        onEdt(() -> pressKey(KeyEvent.VK_DELETE));
-        onEdt(() -> pressKey(KeyEvent.VK_BACK_SPACE));
-        assertEquals(
-                List.of(
-                        "Are you sure you want to uninstall " + hello + "?",
-                        "Are you sure you want to uninstall " + hello + "?"),
-                questions);
-
-        confirm = true;
-        onEdt(() -> pressKey(KeyEvent.VK_DELETE));
-        flush();
-        verify(f.registry).uninstall(hello);
-    }
-
-    /** Delete or Backspace on the table, through the binding the table holds for it. */
-    private void pressKey(int key) {
-        Object action =
-                table().getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key, 0));
-        table().getActionMap()
-                .get(action)
-                .actionPerformed(new ActionEvent(table(), ActionEvent.ACTION_PERFORMED, ""));
-    }
-
-    @Test
     void clickingAnywhereButASelectedRowClearsTheSelection() throws Exception {
         String hello = f.install("hello");
         String other = f.install("menu-root-apps");

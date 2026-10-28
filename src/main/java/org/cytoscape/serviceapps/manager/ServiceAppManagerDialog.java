@@ -50,8 +50,7 @@ import org.cytoscape.util.swing.IconManager;
  *
  * <ul>
  *   <li>Each row ends with a trashcan. A click on it asks {@code Are you sure you want to uninstall
- *       <name>?}, and Yes uninstalls the app. Delete or Backspace on the selected row asks the
- *       same.
+ *       <name>?}, and Yes uninstalls the app.
  *   <li>A single click selects a row and shades it light grey.
  *   <li>A double click on an app that is Online and runnable, or Enter on its selected row, invokes
  *       it: the row turns light blue while its input form is open. On any other app, both do
@@ -80,7 +79,7 @@ public class ServiceAppManagerDialog extends JDialog {
     /** The size of the trashcan glyph, in points. */
     public static final float ICON_SIZE = 14.0f;
 
-    /** The selected row, which Enter runs and Delete uninstalls. */
+    /** The selected row, which Enter runs. */
     static final Color SELECTED_BACKGROUND = new Color(0xee, 0xee, 0xee);
 
     /** The double-clicked row, while its input form is open. */
@@ -176,19 +175,6 @@ public class ServiceAppManagerDialog extends JDialog {
                             @Override
                             public void actionPerformed(ActionEvent e) {
                                 invokeAt(table.getSelectedRow());
-                            }
-                        });
-        for (int key : new int[] {KeyEvent.VK_DELETE, KeyEvent.VK_BACK_SPACE}) {
-            table.getInputMap(JComponent.WHEN_FOCUSED)
-                    .put(KeyStroke.getKeyStroke(key, 0), "uninstallSelected");
-        }
-        table.getActionMap()
-                .put(
-                        "uninstallSelected",
-                        new AbstractAction() {
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                selected().ifPresent(ServiceAppManagerDialog.this::uninstall);
                             }
                         });
         table.addMouseListener(
