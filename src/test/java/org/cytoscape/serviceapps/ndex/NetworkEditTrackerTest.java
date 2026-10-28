@@ -13,8 +13,10 @@ import org.cytoscape.model.events.RowSetRecord;
 import org.cytoscape.model.events.RowsSetEvent;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class NetworkEditTrackerTest {
 
@@ -68,6 +70,17 @@ class NetworkEditTrackerTest {
         tracker.handleEvent(cyNdex2Wrote(network, CyNetwork.NAME));
 
         assertTrue(tracker.edited(network));
+    }
+
+    @Test
+    void aWriteToATableOfNoNetworkIsIgnored() {
+        CyTable table = mock(CyTable.class);
+        CyRow row = mock(CyRow.class);
+        RowsSetEvent event =
+                new RowsSetEvent(
+                        table, List.of(new RowSetRecord(row, NdexLink.UUID_COLUMN, UUID, UUID)));
+
+        assertDoesNotThrow(() -> tracker.handleEvent(event));
     }
 
     @Test
