@@ -14,7 +14,6 @@ import org.cytoscape.serviceapps.testsupport.TestNetworks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class NdexLinkTest {
 
@@ -32,7 +31,7 @@ class NdexLinkTest {
     }
 
     private static NdexLink link(String base) {
-        return new NdexLink(() -> base, network -> false, () -> TestNdex.FOUND);
+        return new NdexLink(() -> base, network -> false, TestNdex.FOUND);
     }
 
     @Test
@@ -72,7 +71,7 @@ class NdexLinkTest {
                             asked.add(n);
                             return true;
                         },
-                        () -> TestNdex.FOUND);
+                        TestNdex.FOUND);
 
         assertEquals("", link.networkUrl(network));
         assertEquals(List.of(network), asked);
@@ -114,127 +113,146 @@ class NdexLinkTest {
         return new NdexLink(
                 () -> "https://ndex.example/",
                 network -> false,
-                () ->
-                        (method, uri, body) -> {
-                            asked.add(method + " " + uri);
-                            return new HttpTransport.Response(status, "{}");
-                        });
+                (method, uri, body) -> {
+                    asked.add(method + " " + uri);
+                    return new HttpTransport.Response(status, "{}");
+                });
     }
 
-    private static CyNetwork named(String name) {
-        CyNetwork network = withUuid(UUID);
+    private static CyNetwork named(String name, String uuid) {
+        CyNetwork network = withUuid(uuid);
         network.getRow(network).set(CyNetwork.NAME, name);
         return network;
     }
 
+    private static NdexLink.Value empty(String reason) {
+        return new NdexLink.Value("", NdexLink.EMPTY_NOTE + reason);
+    }
+
     @Test
-    void aNetworkTheServerHoldsKeepsItsUrlOnceItsSummaryIsFetched() {
+    void aNetworkTheServerHoldsIsSentWithItsUrlAndNoNote() {
         List<String> asked = new ArrayList<>();
 
         assertEquals(
-                "https://ndex.example/v3/networks/" + UUID,
-                answering(200, asked).checkedNetworkUrl(withUuid(UUID)));
+                new NdexLink.Value("https://ndex.example/v3/networks/" + UUID, null),
+                answering(200, asked).value(withUuid(UUID)));
         assertEquals(List.of("GET https://ndex.example/v3/networks/" + UUID + "/summary"), asked);
     }
 
     @Test
-    void anEmptyValueIsSentWithoutAskingTheServer() {
+    void noNetworkOpenIsEmptyWithItsNoteAndNoServerCall() {
         List<String> asked = new ArrayList<>();
 
-        assertEquals(
-                "", answering(404, asked).checkedNetworkUrl(TestNetworks.withEveryColumnType()));
-        assertEquals("", answering(404, asked).checkedNetworkUrl(null));
+        assertEquals(empty("no network is open"), answering(200, asked).value(null));
         assertEquals(List.of(), asked);
     }
 
     @Test
-    void aNetworkTheServerDoesntHoldNamesTheNetworkAndTheServer() {
-        NdexNetworkException e =
-                assertThrows(
-                        NdexNetworkException.class,
-                        () -> answering(404, new ArrayList<>()).checkedNetworkUrl(named("PPI")));
+    void aNetworkNeverOnNdexIsEmptyWithItsNoteAndNoServerCall() {
+        List<String> asked = new ArrayList<>();
+        CyNetwork local = TestNetworks.withEveryColumnType();
+        local.getRow(local).set(CyNetwork.NAME, "Local");
 
         assertEquals(
-                "Unable to use network \"PPI\" because it does not exist on https://ndex.example."
-                        + " Only networks loaded from https://ndex.example will work with service"
-                        + " apps.",
-                e.getMessage());
+                empty("network \"Local\" was never imported from or saved to NDEx"),
+                answering(200, asked).value(local));
+        assertEquals(
+                empty("network \"Blank\" was never imported from or saved to NDEx"),
+                answering(200, asked).value(named("Blank", " ")));
+        assertEquals(List.of(), asked);
     }
 
     @Test
-    void aPrivateNetworkSaysItIsntPublic() {
-        for (int status : new int[] {401, 403}) {
-            NdexNetworkException e =
-                    assertThrows(
-                            NdexNetworkException.class,
-                            () ->
-                                    answering(status, new ArrayList<>())
-                                            .checkedNetworkUrl(named("PPI")));
+    void anInvalidUuidIsEmptyWithItsNoteAndNoServerCall() {
+        List<String> asked = new ArrayList<>();
 
+        assertEquals(
+                empty("network \"Odd\" has an NDEx UUID that isn't valid: \"not a uuid\""),
+                answering(200, asked).value(named("Odd", " not a uuid ")));
+        assertEquals(List.of(), asked);
+    }
+
+    @Test
+    void anEditedNetworkIsEmptyWithItsNoteAndNoServerCall() {
+        List<String> asked = new ArrayList<>();
+        NdexLink link =
+                new NdexLink(
+                        () -> "https://ndex.example",
+                        network -> true,
+                        (method, uri, body) -> {
+                            asked.add(uri.toString());
+                            return new HttpTransport.Response(200, "{}");
+                        });
+
+        assertEquals(
+                empty(
+                        "network \"PPI\" was edited in Desktop since it was last imported from or"
+                                + " saved to NDEx"),
+                link.value(named("PPI", UUID)));
+        assertEquals(List.of(), asked);
+    }
+
+    @Test
+    void aNetworkTheServerDoesntHoldIsEmptyWithItsNote() {
+        assertEquals(
+                empty(
+                        "network \"PPI\" does not exist on https://ndex.example, and only networks"
+                                + " loaded from https://ndex.example are sent with their NDEx"
+                                + " address"),
+                answering(404, new ArrayList<>()).value(named("PPI", UUID)));
+    }
+
+    @Test
+    void aPrivateNetworkIsEmptyWithItsNote() {
+        for (int status : new int[] {401, 403}) {
             assertEquals(
-                    "Unable to use network \"PPI\" because it is not public on"
-                            + " https://ndex.example. Only public networks loaded from"
-                            + " https://ndex.example will work with service apps.",
-                    e.getMessage(),
+                    empty(
+                            "network \"PPI\" is not public on https://ndex.example, and only"
+                                    + " public networks are sent with their NDEx address"),
+                    answering(status, new ArrayList<>()).value(named("PPI", UUID)),
                     "HTTP " + status);
         }
     }
 
     @Test
-    void anyOtherAnswerNamesTheStatus() {
-        NdexNetworkException e =
-                assertThrows(
-                        NdexNetworkException.class,
-                        () -> answering(503, new ArrayList<>()).checkedNetworkUrl(named("PPI")));
-
+    void anyOtherAnswerIsEmptyWithANoteNamingTheStatus() {
         assertEquals(
-                "Unable to use network \"PPI\" because NDEx at https://ndex.example answered HTTP"
-                        + " 503 when asked for it.",
-                e.getMessage());
+                empty("NDEx at https://ndex.example answered HTTP 503 for network \"PPI\""),
+                answering(503, new ArrayList<>()).value(named("PPI", UUID)));
     }
 
     @Test
-    void anUnreachableServerSaysSo() {
+    void anUnreachableServerIsEmptyWithItsNote() {
         NdexLink link =
                 new NdexLink(
                         () -> "https://ndex.example",
                         network -> false,
-                        () ->
-                                (method, uri, body) -> {
-                                    throw new IOException("connect timed out");
-                                });
-
-        NdexNetworkException e =
-                assertThrows(
-                        NdexNetworkException.class, () -> link.checkedNetworkUrl(named("PPI")));
+                        (method, uri, body) -> {
+                            throw new IOException("connect timed out");
+                        });
 
         assertEquals(
-                "Unable to use network \"PPI\" because NDEx at https://ndex.example could not be"
-                        + " reached: connect timed out",
-                e.getMessage());
+                empty(
+                        "NDEx at https://ndex.example could not be reached for network \"PPI\":"
+                                + " connect timed out"),
+                link.value(named("PPI", UUID)));
     }
 
     @Test
-    void aServerSettingThatIsntAnAddressSaysSo() {
+    void aServerSettingThatIsntAnAddressIsEmptyWithItsNoteAndNoServerCall() {
         List<String> asked = new ArrayList<>();
         NdexLink link =
                 new NdexLink(
                         () -> "ndex bio",
                         network -> false,
-                        () ->
-                                (method, uri, body) -> {
-                                    asked.add(uri.toString());
-                                    return new HttpTransport.Response(200, "{}");
-                                });
-
-        NdexNetworkException e =
-                assertThrows(
-                        NdexNetworkException.class, () -> link.checkedNetworkUrl(named("PPI")));
+                        (method, uri, body) -> {
+                            asked.add(uri.toString());
+                            return new HttpTransport.Response(200, "{}");
+                        });
 
         assertEquals(
-                "Unable to use network \"PPI\" because the ndex.base.url setting, ndex bio, is not"
-                        + " a web address.",
-                e.getMessage());
+                empty("the ndex.base.url setting, ndex bio, is not a web address"),
+                link.value(named("PPI", UUID)));
         assertEquals(List.of(), asked);
     }
 }

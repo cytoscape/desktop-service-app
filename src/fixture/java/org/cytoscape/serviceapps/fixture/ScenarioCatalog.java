@@ -217,6 +217,15 @@ public final class ScenarioCatalog {
                                 .add("validationType", "number")
                                 .add("defaultValue", "10")
                                 .build()));
+        // The same parameter on an app that takes no data, which runs with no network open
+        JsonObject ndexNoInput = inputNone();
+        ndexNoInput.getAsJsonObject("serviceInputDefinition").addProperty("type", "none");
+        JsonArray ndexParameter = new JsonArray();
+        ndexParameter.add(param("NDEx network", "ndexUUID").build());
+        ndexNoInput.add("parameters", ndexParameter);
+        JsonArray openUrl = new JsonArray();
+        openUrl.add(action("openURL", json("{\"url\":\"https://www.cytoscape.org\"}")));
+        add(all, "param-ndex-uuid-no-input", declaring(ndexNoInput, "openURL"), openUrl);
 
         // Unsupported inputs
         add(all, "unsupported-file", withParams(param("Input file", "file").build()));

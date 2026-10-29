@@ -21,8 +21,9 @@ are gone, and a selected row is light grey
 - **Parameter type `ndexUUID`.** A service app that asks for the network's NDEx address now runs.
 Desktop fills the value itself, as Cytoscape Web does: the network's NDEx URL when it came from or
 was saved to NDEx and is unchanged since, and an empty value otherwise. The NDEx server is the new
-`ndex.base.url` setting, and it is asked to confirm the network before the address is sent; a
-network it doesn't hold, or holds as private, fails the run with the reason
+`ndex.base.url` setting, and it is asked to confirm the network before the address is sent,
+waiting up to 3 seconds. When the value is empty, the run's completion
+message says why, such as a network edited since its NDEx save or one the server doesn't hold
 ([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
 
 ## [0.1.1] - Unreleased

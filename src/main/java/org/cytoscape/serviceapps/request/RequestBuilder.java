@@ -24,7 +24,6 @@ import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.model.TaskRequest;
 import org.cytoscape.serviceapps.ndex.NdexLink;
-import org.cytoscape.serviceapps.ndex.NdexNetworkException;
 import org.cytoscape.view.model.CyNetworkView;
 
 /**
@@ -41,8 +40,8 @@ import org.cytoscape.view.model.CyNetworkView;
  * </ul>
  *
  * <p>Desktop fills each {@code ndexUUID} parameter itself, with the target's NDEx URL from {@link
- * NdexLink}, whatever the input says for it. The NDEx server confirms that network first; when it
- * can't, the request fails with the reason.
+ * NdexLink}, whatever the input says for it, and asks for it once per request. When that value is
+ * empty, the request's notes say why.
  *
  * @see <a href="https://github.com/cytoscape/cytoscape-web/wiki/Task-Request">Task Request</a>
  */
@@ -106,25 +105,20 @@ public class RequestBuilder {
         Map<String, String> parameters = new LinkedHashMap<>();
         input.parameters().forEach((key, value) -> parameters.put(key, value == null ? "" : value));
         List<String> keys = ParameterKeys.of(meta.parameters());
-        String ndexUrl = null;
+        NdexLink.Value ndexValue = null;
         for (int i = 0; i < keys.size(); i++) {
             if (Parameter.NDEX_UUID.equals(meta.parameters().get(i).type)) {
-                if (ndexUrl == null) {
-                    ndexUrl = checkedNdexUrl(target);
+                if (ndexValue == null) {
+                    ndexValue = ndex.value(target);
                 }
-                parameters.put(keys.get(i), ndexUrl);
+                parameters.put(keys.get(i), ndexValue.url());
             }
         }
-        return new BuiltRequest(new TaskRequest(meta.name, data, parameters), sent);
-    }
-
-    /** The target's NDEx URL, once its server confirms the network; asked once per request. */
-    private String checkedNdexUrl(CyNetwork target) {
-        try {
-            return ndex.checkedNetworkUrl(target);
-        } catch (NdexNetworkException e) {
-            throw new RequestException(e.getMessage(), e);
-        }
+        List<String> notes =
+                ndexValue == null || ndexValue.note() == null
+                        ? List.of()
+                        : List.of(ndexValue.note());
+        return new BuiltRequest(new TaskRequest(meta.name, data, parameters), sent, notes);
     }
 
     private JsonArray networkCx2(

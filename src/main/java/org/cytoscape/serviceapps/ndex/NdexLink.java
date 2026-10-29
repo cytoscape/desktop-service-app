@@ -17,12 +17,11 @@ import org.cytoscape.serviceapps.client.HttpTransport;
  * Cytoscape Web sends it, {@code <server>/v3/networks/<uuid>}.
  *
  * <p>The UUID is the one CyNDEx-2 stores in the network's hidden table when the network is imported
- * from or saved to NDEx. The value is empty for a network with no UUID, and for one edited since
- * that import or save, whose NDEx copy is older than what the service receives. A service reads an
- * empty value as a network that lives only in Desktop.
- *
- * <p>Before a run sends a URL, {@link #checkedNetworkUrl} asks that server for the network's
- * summary, so a network from another server, or one deleted there, fails the run with a reason.
+ * from or saved to NDEx. Before a run sends a URL, {@link #value} asks that server for the
+ * network's summary. The value is empty, with a note saying why, for a network with no valid UUID,
+ * one edited since that import or save, and one the server doesn't confirm. A service reads an
+ * empty value as a network that lives only in Desktop, and still receives the network itself as the
+ * request's data.
  *
  * @see <a href="https://github.com/cytoscape/cytoscape-web/wiki/parameters">parameters</a>
  */
@@ -39,101 +38,139 @@ public class NdexLink {
 
     public static final String DEFAULT_BASE_URL = "https://www.ndexbio.org";
 
+    /** How every note for an empty value starts, in the run's completion message. */
+    public static final String EMPTY_NOTE = "NDEx address left empty: ";
+
+    /**
+     * An {@code ndexUUID} value, and the note saying why it is empty.
+     *
+     * @param url the NDEx URL, or empty
+     * @param note the completion-message note for an empty value; null when the URL is sent
+     */
+    public record Value(String url, String note) {
+
+        static Value sent(String url) {
+            return new Value(url, null);
+        }
+
+        static Value empty(String reason) {
+            return new Value("", EMPTY_NOTE + reason);
+        }
+    }
+
     private final Supplier<String> baseUrl;
     private final Predicate<CyNetwork> edited;
-    private final Supplier<HttpTransport> http;
+    private final HttpTransport http;
 
     /**
      * @param baseUrl the NDEx server, read on every call so a changed setting applies at once
      * @param edited whether a network changed since its last import from or save to NDEx
-     * @param http sends the summary request; asked for on every check, for the current timeouts
+     * @param http sends the summary request
      */
-    public NdexLink(
-            Supplier<String> baseUrl, Predicate<CyNetwork> edited, Supplier<HttpTransport> http) {
+    public NdexLink(Supplier<String> baseUrl, Predicate<CyNetwork> edited, HttpTransport http) {
         this.baseUrl = baseUrl;
         this.edited = edited;
         this.http = http;
     }
 
-    /** The NDEx URL of {@code network}, or empty when the service should treat it as local. */
+    /** The NDEx URL of {@code network}, without asking the server; empty as {@link #value}. */
     public String networkUrl(CyNetwork network) {
-        if (network == null) {
-            return "";
-        }
-        String uuid = uuidOf(network);
-        if (uuid == null || edited.test(network)) {
-            return "";
-        }
-        return url(baseUrl.get(), uuid);
+        return local(network).url();
     }
 
     /**
-     * {@link #networkUrl}, once the NDEx server confirms it holds that network. An empty value goes
-     * unchecked.
-     *
-     * @throws NdexNetworkException when the server answers anything but success for the network's
-     *     summary, or can't be reached
+     * The value to send for {@code network}: its NDEx URL once the server confirms the network, or
+     * empty with the reason. Asks the server only when there is a URL to send.
      */
-    public String checkedNetworkUrl(CyNetwork network) {
-        String url = networkUrl(network);
-        if (url.isEmpty()) {
-            return url;
+    public Value value(CyNetwork network) {
+        Value value = local(network);
+        return value.note() == null ? confirmed(network, value.url()) : value;
+    }
+
+    /** The value from what Desktop knows: the network, its UUID and whether it was edited. */
+    private Value local(CyNetwork network) {
+        if (network == null) {
+            return Value.empty("no network is open");
         }
+        String stored = storedUuid(network);
+        if (stored == null || stored.isBlank()) {
+            return Value.empty(
+                    "network " + name(network) + " was never imported from or saved to NDEx");
+        }
+        String uuid = canonical(stored);
+        if (uuid == null) {
+            return Value.empty(
+                    "network "
+                            + name(network)
+                            + " has an NDEx UUID that isn't valid: \""
+                            + stored.strip()
+                            + "\"");
+        }
+        if (edited.test(network)) {
+            return Value.empty(
+                    "network "
+                            + name(network)
+                            + " was edited in Desktop since it was last imported from or saved to"
+                            + " NDEx");
+        }
+        return Value.sent(url(baseUrl.get(), uuid));
+    }
+
+    /** {@code url}, once the server answers success for the network's summary. */
+    private Value confirmed(CyNetwork network, String url) {
         String server = server(baseUrl.get());
-        String name = network.getRow(network).get(CyNetwork.NAME, String.class);
+        String name = name(network);
         URI summary;
         try {
             summary = URI.create(url + "/summary");
         } catch (IllegalArgumentException e) {
-            throw new NdexNetworkException(
-                    unable(name)
-                            + " because the "
-                            + BASE_URL
-                            + " setting, "
-                            + server
-                            + ", is not a web address.");
+            return Value.empty(
+                    "the " + BASE_URL + " setting, " + server + ", is not a web address");
         }
         HttpTransport.Response response;
         try {
-            response = http.get().send("GET", summary, null);
+            response = http.send("GET", summary, null);
         } catch (IOException | IllegalArgumentException e) {
-            throw new NdexNetworkException(
-                    unable(name)
-                            + " because NDEx at "
+            return Value.empty(
+                    "NDEx at "
                             + server
-                            + " could not be reached: "
-                            + e.getMessage());
+                            + " could not be reached for network "
+                            + name
+                            + ": "
+                            + (e.getMessage() == null
+                                    ? e.getClass().getSimpleName()
+                                    : e.getMessage()));
         }
         if (response.isSuccess()) {
-            return url;
+            return Value.sent(url);
         }
-        switch (response.status()) {
-            case 404 -> throw new NdexNetworkException(
-                    unable(name)
-                            + " because it does not exist on "
+        return switch (response.status()) {
+            case 404 -> Value.empty(
+                    "network "
+                            + name
+                            + " does not exist on "
                             + server
-                            + ". Only networks loaded from "
+                            + ", and only networks loaded from "
                             + server
-                            + " will work with service apps.");
-            case 401, 403 -> throw new NdexNetworkException(
-                    unable(name)
-                            + " because it is not public on "
+                            + " are sent with their NDEx address");
+            case 401, 403 -> Value.empty(
+                    "network "
+                            + name
+                            + " is not public on "
                             + server
-                            + ". Only public networks loaded from "
-                            + server
-                            + " will work with service apps.");
-            default -> throw new NdexNetworkException(
-                    unable(name)
-                            + " because NDEx at "
+                            + ", and only public networks are sent with their NDEx address");
+            default -> Value.empty(
+                    "NDEx at "
                             + server
                             + " answered HTTP "
                             + response.status()
-                            + " when asked for it.");
-        }
+                            + " for network "
+                            + name);
+        };
     }
 
-    private static String unable(String name) {
-        return "Unable to use network \"" + name + "\"";
+    private static String name(CyNetwork network) {
+        return "\"" + network.getRow(network).get(CyNetwork.NAME, String.class) + "\"";
     }
 
     /**
@@ -142,13 +179,17 @@ public class NdexLink {
      * network counts as local otherwise.
      */
     public static String uuidOf(CyNetwork network) {
+        return canonical(storedUuid(network));
+    }
+
+    /** The text in {@code network}'s {@code NDEx UUID} column, or null when it has none. */
+    private static String storedUuid(CyNetwork network) {
         CyTable hidden = network.getTable(CyNetwork.class, CyNetwork.HIDDEN_ATTRS);
         if (hidden == null || hidden.getColumn(UUID_COLUMN) == null) {
             return null;
         }
         CyRow row = hidden.getRow(network.getSUID());
-        String stored = row == null ? null : row.get(UUID_COLUMN, String.class);
-        return canonical(stored);
+        return row == null ? null : row.get(UUID_COLUMN, String.class);
     }
 
     /** {@code text} as a lower-case UUID, or null when it is anything else. */

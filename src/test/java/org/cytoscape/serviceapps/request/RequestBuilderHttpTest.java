@@ -27,7 +27,6 @@ import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 /** What the service receives is exactly the built request: checked in the fixture's request log. */
@@ -127,7 +126,7 @@ class RequestBuilderHttpTest {
         NetworkEditTracker edits =
                 new NetworkEditTracker(TestNetworks.support().getNetworkTableManager());
         edits.markSaved(network);
-        NdexLink ndex = new NdexLink(() -> fixture.ndexUrl() + "/", edits::edited, () -> http());
+        NdexLink ndex = new NdexLink(() -> fixture.ndexUrl() + "/", edits::edited, http());
         ServiceInput input = new ServiceInput(Map.of("K", "10"), Map.of());
 
         JsonObject saved = submitAndRead(fixture, "param-ndex-uuid", input, network, ndex);
@@ -144,7 +143,7 @@ class RequestBuilderHttpTest {
     @Test
     void theNdexServerIsAskedForTheNetworksSummaryBeforeTheUrlIsSent(FixtureServer fixture) {
         CyNetwork network = fromNdex(FixtureServer.NDEX_NETWORK);
-        NdexLink ndex = new NdexLink(fixture::ndexUrl, n -> false, () -> http());
+        NdexLink ndex = new NdexLink(fixture::ndexUrl, n -> false, http());
 
         submitAndRead(
                 fixture,
@@ -161,10 +160,10 @@ class RequestBuilderHttpTest {
     }
 
     @Test
-    void aNetworkTheNdexServerDoesntHoldFailsTheRequestAndNothingIsSent(FixtureServer fixture) {
+    void aNetworkTheNdexServerDoesntHoldIsSentEmptyWithANote(FixtureServer fixture) {
         CyNetwork network = fromNdex("0b5e0f6c-2c6a-11ef-9a1f-005056ae23aa");
         network.getRow(network).set(CyNetwork.NAME, "Interactome");
-        NdexLink ndex = new NdexLink(fixture::ndexUrl, n -> false, () -> http());
+        NdexLink ndex = new NdexLink(fixture::ndexUrl, n -> false, http());
         fixture.clearRequests();
         RequestBuilder builder =
                 new RequestBuilder(
@@ -174,26 +173,22 @@ class RequestBuilderHttpTest {
                                 null),
                         ndex);
 
-        RequestException e =
-                assertThrows(
-                        RequestException.class,
-                        () ->
-                                builder.build(
-                                        TestNetworks.scenario("param-ndex-uuid"),
-                                        new ServiceInput(Map.of("K", "10"), Map.of()),
-                                        network,
-                                        null));
+        BuiltRequest built =
+                builder.build(
+                        TestNetworks.scenario("param-ndex-uuid"),
+                        new ServiceInput(Map.of("K", "10"), Map.of()),
+                        network,
+                        null);
 
+        assertEquals("", built.request().parameters.get("NDEx network"));
         assertEquals(
-                "Unable to use network \"Interactome\" because it does not exist on "
-                        + fixture.ndexUrl()
-                        + ". Only networks loaded from "
-                        + fixture.ndexUrl()
-                        + " will work with service apps.",
-                e.getMessage());
-        assertEquals(
-                List.of("GET"),
-                fixture.requests().stream().map(FixtureServer.RecordedRequest::method).toList(),
-                "only the NDEx check; the service gets nothing");
+                List.of(
+                        NdexLink.EMPTY_NOTE
+                                + "network \"Interactome\" does not exist on "
+                                + fixture.ndexUrl()
+                                + ", and only networks loaded from "
+                                + fixture.ndexUrl()
+                                + " are sent with their NDEx address"),
+                built.notes());
     }
 }

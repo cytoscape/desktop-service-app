@@ -23,7 +23,6 @@ import org.cytoscape.serviceapps.model.Parameter;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.ndex.NdexLink;
-import org.cytoscape.serviceapps.ndex.NdexNetworkException;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
@@ -309,18 +308,18 @@ class RequestBuilderTest {
         return parameter;
     }
 
-    /**
-     * Builds with an NDEx link that answers {@code url} for {@link #network} and empty otherwise.
-     */
-    private BuiltRequest buildWithNdex(ServiceMetadata meta, ServiceInput input, CyNetwork target) {
-        NdexLink ndex =
-                new NdexLink(() -> "https://ndex.example", n -> false, () -> TestNdex.FOUND) {
-                    @Override
-                    public String checkedNetworkUrl(CyNetwork n) {
-                        return n == network ? "https://ndex.example/v3/networks/u-1" : "";
-                    }
-                };
-        return new RequestBuilder(cx2, ndex).build(meta, input, target, null);
+    private static final NdexLink.Value LINKED =
+            new NdexLink.Value("https://ndex.example/v3/networks/u-1", null);
+
+    /** An NDEx link answering {@code value} for every network, recording what it is asked. */
+    private static NdexLink answering(NdexLink.Value value, List<CyNetwork> asked) {
+        return new NdexLink(() -> "https://ndex.example", n -> false, TestNdex.FOUND) {
+            @Override
+            public Value value(CyNetwork n) {
+                asked.add(n);
+                return value;
+            }
+        };
     }
 
     @Test
@@ -330,15 +329,34 @@ class RequestBuilderTest {
                 List.of(parameter("Interactome", Parameter.NDEX_UUID), parameter("K", "text"));
 
         BuiltRequest built =
-                buildWithNdex(
-                        meta,
-                        new ServiceInput(
-                                Map.of("K", "10", "Interactome", "typed by a caller"), Map.of()),
-                        network);
+                new RequestBuilder(cx2, answering(LINKED, new ArrayList<>()))
+                        .build(
+                                meta,
+                                new ServiceInput(
+                                        Map.of("K", "10", "Interactome", "typed by a caller"),
+                                        Map.of()),
+                                network,
+                                null);
 
         assertEquals(
                 Map.of("Interactome", "https://ndex.example/v3/networks/u-1", "K", "10"),
                 built.request().parameters);
+        assertEquals(List.of(), built.notes());
+    }
+
+    @Test
+    void anEmptyNdexValueSendsTheNetworkAnywayAndCarriesItsNote() {
+        ServiceMetadata meta = network("all", "network");
+        meta.parameters = List.of(parameter("Interactome", Parameter.NDEX_UUID));
+        NdexLink.Value empty = new NdexLink.Value("", NdexLink.EMPTY_NOTE + "the reason");
+
+        BuiltRequest built =
+                new RequestBuilder(cx2, answering(empty, new ArrayList<>()))
+                        .build(meta, ServiceInput.empty(), network, null);
+
+        assertEquals(Map.of("Interactome", ""), built.request().parameters);
+        assertTrue(built.request().data.isJsonArray(), "the network is still sent as data");
+        assertEquals(List.of(NdexLink.EMPTY_NOTE + "the reason"), built.notes());
     }
 
     @Test
@@ -346,58 +364,44 @@ class RequestBuilderTest {
         ServiceMetadata meta = meta(null, null);
         meta.parameters = List.of(parameter("Interactome", Parameter.NDEX_UUID));
 
-        BuiltRequest built = buildWithNdex(meta, ServiceInput.empty(), null);
+        BuiltRequest built =
+                new RequestBuilder(cx2, TestNdex.link())
+                        .build(meta, ServiceInput.empty(), null, null);
 
         assertEquals(Map.of("Interactome", ""), built.request().parameters);
+        assertEquals(List.of(NdexLink.EMPTY_NOTE + "no network is open"), built.notes());
     }
 
     @Test
-    void anNdexCheckThatFailsFailsTheRequestWithItsReason() {
-        ServiceMetadata meta = network("all", "network");
-        meta.parameters = List.of(parameter("Interactome", Parameter.NDEX_UUID));
-        NdexLink ndex =
-                new NdexLink(() -> "https://ndex.example", n -> false, () -> TestNdex.FOUND) {
-                    @Override
-                    public String checkedNetworkUrl(CyNetwork n) {
-                        throw new NdexNetworkException("the reason");
-                    }
-                };
-
-        RequestException e =
-                assertThrows(
-                        RequestException.class,
-                        () ->
-                                new RequestBuilder(cx2, ndex)
-                                        .build(meta, ServiceInput.empty(), network, null));
-
-        assertEquals("the reason", e.getMessage());
-    }
-
-    @Test
-    void severalNdexUuidParametersShareOneCheck() {
+    void severalNdexUuidParametersShareOneValue() {
         ServiceMetadata meta = network("all", "network");
         meta.parameters =
                 List.of(
                         parameter("Interactome", Parameter.NDEX_UUID),
                         parameter("Reference", Parameter.NDEX_UUID));
-        List<CyNetwork> checked = new ArrayList<>();
-        NdexLink ndex =
-                new NdexLink(() -> "https://ndex.example", n -> false, () -> TestNdex.FOUND) {
-                    @Override
-                    public String checkedNetworkUrl(CyNetwork n) {
-                        checked.add(n);
-                        return "https://ndex.example/v3/networks/u-1";
-                    }
-                };
+        List<CyNetwork> asked = new ArrayList<>();
 
         BuiltRequest built =
-                new RequestBuilder(cx2, ndex).build(meta, ServiceInput.empty(), network, null);
+                new RequestBuilder(cx2, answering(LINKED, asked))
+                        .build(meta, ServiceInput.empty(), network, null);
 
         assertEquals(
                 Map.of(
                         "Interactome", "https://ndex.example/v3/networks/u-1",
                         "Reference", "https://ndex.example/v3/networks/u-1"),
                 built.request().parameters);
-        assertEquals(List.of(network), checked);
+        assertEquals(List.of(network), asked);
+    }
+
+    @Test
+    void anAppWithoutAnNdexUuidParameterNeverAsksAndHasNoNotes() {
+        List<CyNetwork> asked = new ArrayList<>();
+
+        BuiltRequest built =
+                new RequestBuilder(cx2, answering(LINKED, asked))
+                        .build(network("all", "network"), ServiceInput.empty(), network, null);
+
+        assertEquals(List.of(), asked);
+        assertEquals(List.of(), built.notes());
     }
 }

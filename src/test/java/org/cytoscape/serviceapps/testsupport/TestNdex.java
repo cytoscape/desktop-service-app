@@ -12,7 +12,7 @@ public final class TestNdex {
      * Links to the default server, treats every network as unedited, and finds every network there.
      */
     public static NdexLink link() {
-        return new NdexLink(() -> NdexLink.DEFAULT_BASE_URL, network -> false, () -> FOUND);
+        return new NdexLink(() -> NdexLink.DEFAULT_BASE_URL, network -> false, FOUND);
     }
 
     /** An NDEx server that holds every network asked for. */

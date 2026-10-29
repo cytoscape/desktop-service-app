@@ -31,11 +31,12 @@ import com.sun.net.httpserver.HttpServer;
  * DELETE /{scenario}/{id}           delete the task: 204
  * </pre>
  *
- * <p>It also stands in for an NDEx server at {@code /ndex}, holding the one network {@link
- * #NDEX_NETWORK}:
+ * <p>It also stands in for an NDEx server at {@code /ndex}, holding the public network {@link
+ * #NDEX_NETWORK} and the private network {@link #NDEX_PRIVATE_NETWORK}:
  *
  * <pre>
- * GET    /ndex/v3/networks/{uuid}/summary   200 for NDEX_NETWORK, 404 for any other
+ * GET    /ndex/v3/networks/{uuid}/summary   200 for NDEX_NETWORK, 401 for NDEX_PRIVATE_NETWORK,
+ *                                           404 for any other
  * </pre>
  */
 public class FixtureServer implements AutoCloseable {
@@ -43,8 +44,11 @@ public class FixtureServer implements AutoCloseable {
     /** One request the server received. */
     public record RecordedRequest(String method, String path, String body) {}
 
-    /** The one network the stand-in NDEx server holds. */
+    /** The public network the stand-in NDEx server holds. */
     public static final String NDEX_NETWORK = "6f1b4ca6-0f2a-11ef-9a1f-005056ae23aa";
+
+    /** The private network the stand-in NDEx server holds: 401 to an anonymous request. */
+    public static final String NDEX_PRIVATE_NETWORK = "7a2c5db7-1e3b-11ef-9a1f-005056ae23aa";
 
     private static final String NDEX = "ndex";
 
@@ -177,7 +181,7 @@ public class FixtureServer implements AutoCloseable {
     }
 
     /** Status polls advance the task one progress step each; result fetches don't. */
-    /** {@code GET /ndex/v3/networks/{uuid}/summary}: a small summary, or 404. */
+    /** {@code GET /ndex/v3/networks/{uuid}/summary}: a small summary, 401 or 404. */
     private static void ndexReply(HttpExchange exchange, String method, String[] parts)
             throws IOException {
         boolean summary =
@@ -191,6 +195,8 @@ public class FixtureServer implements AutoCloseable {
             body.addProperty("externalId", NDEX_NETWORK);
             body.addProperty("name", "NDEx network");
             reply(exchange, 200, body);
+        } else if (summary && parts[3].equals(NDEX_PRIVATE_NETWORK)) {
+            reply(exchange, 401, message("the network is private"));
         } else {
             reply(exchange, 404, message("no NDEx network at " + exchange.getRequestURI()));
         }

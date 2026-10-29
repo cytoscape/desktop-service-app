@@ -55,28 +55,25 @@ The dialog appears even for an app with no inputs, so you always see what is abo
 
 ### Apps that need the network's NDEx address
 
-Some service apps ask for the NDEx address of the network they work on, with an `ndexUUID` input. Desktop fills it in for you, and the dialog doesn't show it. The value depends on the network you were looking at when you clicked **OK**:
+Some service apps ask for the NDEx address of the network they work on, with an `ndexUUID` input. Desktop fills it in for you, and the dialog doesn't show it. The app receives the network's NDEx address, such as `https://www.ndexbio.org/v3/networks/<uuid>`, when the network was imported from or saved to NDEx, is unchanged since, and the NDEx server confirms it holds the network. Otherwise the app receives an empty value, and the run's completion message ends with a note saying why:
 
-| The network | The app receives |
+| The network | Note in the completion message |
 |---|---|
-| Imported from or saved to NDEx, and unchanged since | Its NDEx address, such as `https://www.ndexbio.org/v3/networks/<uuid>` |
-| Imported from or saved to NDEx, then changed in Desktop | An empty value |
-| Created in Desktop and never saved to NDEx | An empty value |
-| None open, for an app that takes no data | An empty value |
+| None open, for an app that takes no data | `NDEx address left empty: no network is open` |
+| Created in Desktop, or never imported from or saved to NDEx | `NDEx address left empty: network "<name>" was never imported from or saved to NDEx` |
+| Has an NDEx UUID that isn't one | `NDEx address left empty: network "<name>" has an NDEx UUID that isn't valid: "<value>"` |
+| Changed in Desktop since its last NDEx import or save | `NDEx address left empty: network "<name>" was edited in Desktop since it was last imported from or saved to NDEx` |
+| Not on the NDEx server, such as one imported from another server or deleted since | `NDEx address left empty: network "<name>" does not exist on <server>, and only networks loaded from <server> are sent with their NDEx address` |
+| Private on the NDEx server | `NDEx address left empty: network "<name>" is not public on <server>, and only public networks are sent with their NDEx address` |
+| The NDEx server answers with an error | `NDEx address left empty: NDEx at <server> answered HTTP <status> for network "<name>"` |
+| The NDEx server can't be reached in time | `NDEx address left empty: NDEx at <server> could not be reached for network "<name>": <reason>` |
+| The `ndex.base.url` setting isn't a web address | `NDEx address left empty: the ndex.base.url setting, <value>, is not a web address` |
 
-An empty value tells the app the network lives only in Desktop, and the run goes ahead, as in Cytoscape Web. Community Detection, for example, still clusters the network you sent, and links its result to that network by name rather than to the NDEx copy. Save the network to NDEx first if you want the result linked to it there.
+An empty value tells the app the network lives only in Desktop, and the run goes ahead, as in Cytoscape Web. The app still receives the network itself. Community Detection, for example, still clusters the network you sent, and links its result to that network by name rather than to the NDEx copy. Save the network to NDEx first if you want the result linked to it there.
 
-Desktop knows a network's NDEx UUID from the CyNDEx-2 app, which records it on every import and save. A change means any added or removed node or edge, or any changed value in the node or edge tables; selecting nodes isn't a change. Changes are counted from when the Desktop Service App starts, or from when the session is opened. The NDEx server in the address is the `ndex.base.url` [setting](#settings).
+Desktop knows a network's NDEx UUID from the CyNDEx-2 app, which records it on every import and save. A change means any added or removed node or edge, or any changed value in the node or edge tables; selecting nodes isn't a change. Changes are counted from when the Desktop Service App starts, or from when the session is opened.
 
-Before it sends an address, Desktop asks that NDEx server for the network's summary. If the server can't confirm the network, the run stops before anything is sent, and says why:
-
-| The NDEx server | The run fails with |
-|---|---|
-| Doesn't hold the network, such as one imported from another NDEx server or deleted since | `Unable to use network "<name>" because it does not exist on <server>. Only networks loaded from <server> will work with service apps.` |
-| Holds it as a private network | `Unable to use network "<name>" because it is not public on <server>. Only public networks loaded from <server> will work with service apps.` |
-| Can't be reached, or answers with an error | The reason, naming the server |
-
-To use a network from another NDEx server, set `ndex.base.url` to that server.
+Before it sends an address, Desktop asks the NDEx server in the `ndex.base.url` [setting](#settings) for the network's summary, waiting up to 3 seconds. To send the addresses of networks from another NDEx server, set `ndex.base.url` to that server.
 
 Click **OK** and the network you were looking at is sent to the service: the whole network, or only the selected nodes and edges when the app works on a selection. An app that takes no data (its input type is missing or `none`) gets only its inputs, and runs without a network open. The progress bar follows the service. When the service is done, its result is applied to that same network, even if you've switched to another one in the meantime.
 
@@ -130,7 +127,6 @@ Results can't be undone. Save your session first if you may want to go back.
 
 A run either completes or fails. When it completes, the task history shows what was applied, plus any notes, such as rows that were skipped. When it fails, Cytoscape shows an error, and the message starts with one of these:
 
-- **Unable to use network:** the app needs the network's NDEx address, and the NDEx server couldn't confirm the network; see [Apps that need the network's NDEx address](#apps-that-need-the-networks-ndex-address). Nothing was sent.
 - **Service task failed:** the service refused the task, reported a failure, stopped answering, or took longer than the time limit (30 minutes by default). Nothing was applied.
 - **Rendering failed:** the result couldn't be applied. As in Cytoscape Web, the first action that can't be applied stops the run. Actions before it stay applied and later ones aren't, and the message lists both. For example:
   `Rendering failed at updateTables (2 of 3): updateTables column 'score' is integer in Desktop but string in the result. Applied: updateLayouts. Not applied: updateSelection.`

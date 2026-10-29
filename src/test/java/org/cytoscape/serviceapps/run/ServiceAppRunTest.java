@@ -21,6 +21,7 @@ import org.cytoscape.serviceapps.client.ServiceAppClient;
 import org.cytoscape.serviceapps.fixture.FixtureServer;
 import org.cytoscape.serviceapps.fixture.FixtureServerExtension;
 import org.cytoscape.serviceapps.model.TaskStatus;
+import org.cytoscape.serviceapps.ndex.NdexLink;
 import org.cytoscape.serviceapps.render.LayoutsHandler;
 import org.cytoscape.serviceapps.render.RenderServiceAppUI;
 import org.cytoscape.serviceapps.request.RequestBuilder;
@@ -118,6 +119,19 @@ class ServiceAppRunTest {
         assertTrue(last.startsWith("complete 100 Applied updateLayouts"), last);
         assertTrue(states.stream().anyMatch(s -> s.startsWith("processing 50")), states.toString());
         assertEquals(0, active.count("failure-slow"));
+    }
+
+    @Test
+    void anEmptyNdexAddressIsExplainedInTheCompletionMessage(FixtureServer fixture) {
+        RecordingTaskMonitor monitor = new RecordingTaskMonitor();
+
+        run(fixture, "param-ndex-uuid", FAST).run(monitor);
+
+        assertEquals(
+                "complete 100 Applied updateLayouts. Notes: "
+                        + NdexLink.EMPTY_NOTE
+                        + "network \"target\" was never imported from or saved to NDEx",
+                states.get(states.size() - 1));
     }
 
     @Test
