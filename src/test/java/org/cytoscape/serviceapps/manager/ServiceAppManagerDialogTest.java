@@ -550,10 +550,8 @@ class ServiceAppManagerDialogTest {
      * what the dialog shows right after, before queued work such as the launch runs.
      */
     private String pressEnter(String name) throws Exception {
-        Object key =
-                table().getInputMap(JComponent.WHEN_FOCUSED)
-                        .get(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0));
         String[] after = new String[1];
+        Object key = boundTo(KeyEvent.VK_ENTER);
         onEdt(
                 () -> {
                     table().getActionMap()
@@ -563,6 +561,28 @@ class ServiceAppManagerDialogTest {
                     after[0] = name == null ? null : rowState(rowOf(name));
                 });
         return after[0];
+    }
+
+    /** The action name the table binds {@code keyCode} to when it has the focus. */
+    private Object boundTo(int keyCode) {
+        Object key =
+                table().getInputMap(JComponent.WHEN_FOCUSED)
+                        .get(KeyStroke.getKeyStroke(keyCode, 0));
+        assertNotNull(table().getActionMap().get(key), KeyEvent.getKeyText(keyCode) + " is bound");
+        return key;
+    }
+
+    /** {@code keyCode} on the table, through whatever the table binds it to when focused. */
+    private void press(int keyCode) throws Exception {
+        Object key = boundTo(keyCode);
+        onEdt(
+                () ->
+                        table().getActionMap()
+                                .get(key)
+                                .actionPerformed(
+                                        new ActionEvent(
+                                                table(), ActionEvent.ACTION_PERFORMED, "")));
+        flush();
     }
 
     @Test
@@ -731,6 +751,51 @@ class ServiceAppManagerDialogTest {
 
         assertEquals(List.of("Are you sure you want to uninstall " + hello + "?"), questions);
         verify(f.launcher, never()).launch(anyString());
+    }
+
+    /** {@code keyCode} on the selected row asks to uninstall it; No keeps it and Yes removes it. */
+    private void assertKeyUninstallsTheSelectedApp(int keyCode) throws Exception {
+        String hello = f.install("hello");
+        open();
+        select(hello);
+
+        confirm = false;
+        press(keyCode);
+
+        assertEquals(List.of("Are you sure you want to uninstall " + hello + "?"), questions);
+        verify(f.registry, never()).uninstall(anyString());
+        assertEquals(0, table().getSelectedRow(), "No: still listed and selected");
+
+        confirm = true;
+        press(keyCode);
+
+        verify(f.registry).uninstall(hello);
+        assertFalse(dialog.showsTable(), "Yes: uninstalled");
+        verify(f.launcher, never()).launch(anyString());
+    }
+
+    @Test
+    void deleteAsksToUninstallTheSelectedAppAndYesUninstallsIt() throws Exception {
+        assertKeyUninstallsTheSelectedApp(KeyEvent.VK_DELETE);
+    }
+
+    @Test
+    void backspaceAsksToUninstallTheSelectedAppAndYesUninstallsIt() throws Exception {
+        assertKeyUninstallsTheSelectedApp(KeyEvent.VK_BACK_SPACE);
+    }
+
+    @Test
+    void deleteAndBackspaceWithNothingSelectedAskNothing() throws Exception {
+        f.install("hello");
+        open();
+        confirm = true;
+
+        press(KeyEvent.VK_DELETE);
+        press(KeyEvent.VK_BACK_SPACE);
+
+        assertEquals(List.of(), questions);
+        verify(f.registry, never()).uninstall(anyString());
+        assertEquals(1, table().getRowCount());
     }
 
     @Test

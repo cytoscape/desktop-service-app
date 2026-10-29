@@ -49,8 +49,8 @@ import org.cytoscape.util.swing.IconManager;
  * window's X or Escape.
  *
  * <ul>
- *   <li>Each row ends with a trashcan. A click on it asks {@code Are you sure you want to uninstall
- *       <name>?}, and Yes uninstalls the app.
+ *   <li>Each row ends with a trashcan. A click on it, or Delete or Backspace on the selected row,
+ *       asks {@code Are you sure you want to uninstall <name>?}, and Yes uninstalls the app.
  *   <li>A single click selects a row and shades it light grey.
  *   <li>A double click on an app that is Online and runnable, or Enter on its selected row, invokes
  *       it: the row turns light blue while its input form is open. On any other app, both do
@@ -79,7 +79,7 @@ public class ServiceAppManagerDialog extends JDialog {
     /** The size of the trashcan glyph, in points. */
     public static final float ICON_SIZE = 14.0f;
 
-    /** The selected row, which Enter runs. */
+    /** The selected row, which Enter runs and Delete or Backspace offers to uninstall. */
     static final Color SELECTED_BACKGROUND = new Color(0xee, 0xee, 0xee);
 
     /** The double-clicked row, while its input form is open. */
@@ -175,6 +175,20 @@ public class ServiceAppManagerDialog extends JDialog {
                             @Override
                             public void actionPerformed(ActionEvent e) {
                                 invokeAt(table.getSelectedRow());
+                            }
+                        });
+        // Delete or Backspace asks to uninstall the selected app, as a click on its trashcan does.
+        table.getInputMap(JComponent.WHEN_FOCUSED)
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "uninstallSelected");
+        table.getInputMap(JComponent.WHEN_FOCUSED)
+                .put(KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0), "uninstallSelected");
+        table.getActionMap()
+                .put(
+                        "uninstallSelected",
+                        new AbstractAction() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                selected().ifPresent(ServiceAppManagerDialog.this::uninstall);
                             }
                         });
         table.addMouseListener(

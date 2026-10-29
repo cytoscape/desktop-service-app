@@ -99,10 +99,10 @@ It is also greyed out when the app can't run at all. Then its tooltip ends with 
 | **Description** | The app's description. Hover to read all of it. |
 | **Author** | The app's author. |
 | **Status** | **Checking…** when the manager opens, then **Online** (bold green) or **Offline** (bold red) as each service answers or doesn't. |
-| *(trashcan)* | Click to uninstall that app. |
+| *(trashcan)* | Click to uninstall that app, or select the row and press **Delete** or **Backspace**. |
 
 - **Double-click** an app's row, or select it and press **Enter**, to run it, opening the same dialog as its menu entry. The row turns light blue until the dialog closes. A double click does nothing while the app is **Checking…** or **Offline**, or when Desktop can't run it; hover over the name to see why.
-- **Click the trashcan** at the end of an app's row to uninstall it. You are asked `Are you sure you want to uninstall <name>?`; **Yes** removes the app, and **No** leaves everything as it was.
+- **Click the trashcan** at the end of an app's row, or select the row and press **Delete** or **Backspace**, to uninstall it. You are asked `Are you sure you want to uninstall <name>?`; **Yes** removes the app, and **No** leaves everything as it was.
 - **Click** a row to select it; it turns light grey. Clicking anywhere else in the manager clears the selection.
 
 The manager stays open while you work and updates on its own when apps are installed or removed elsewhere, such as from the App Store page. Close it with **Close**, the window's close button, or Escape. With no service apps installed, it says **No Service Apps installed**, with a link that opens the App Store's service apps page in your web browser so you can choose one to install: [apps.cytoscape.org/apps/platform/service/](https://apps.cytoscape.org/apps/platform/service/), or the same page on the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property (**Edit > Preferences > Properties**, `cytoscape3`), when that is set. If you already know a service app's URL, it also shows the command to install it from the Command Line (**View > Show Command Panel**): `serviceapps install url=<service URL>`.

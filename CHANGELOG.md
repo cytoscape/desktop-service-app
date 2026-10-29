@@ -12,8 +12,8 @@ Trashcan uninstall in the manager, and the `ndexUUID` parameter.
 ### Changed
 
 - **Uninstalling from the manager.** Each row ends with a trashcan, which asks "Are you sure you
-want to uninstall <name>?" with Yes and No. The Uninstall button and the light red row highlight
-are gone, and a selected row is light grey
+want to uninstall <name>?" with Yes and No. Delete or Backspace on the selected row asks the same.
+The Uninstall button and the light red row highlight are gone, and a selected row is light grey
 ([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
 
 ### Added
