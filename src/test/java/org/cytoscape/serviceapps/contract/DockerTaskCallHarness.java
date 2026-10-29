@@ -121,11 +121,6 @@ public class DockerTaskCallHarness implements ContractHarness {
     }
 
     @Override
-    public boolean supportsViewTarget() {
-        return !omitUiInput;
-    }
-
-    @Override
     public void reset() {
         desktop.exec("rm", "-f", OPENED_URLS);
         loadNetworks();

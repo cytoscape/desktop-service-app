@@ -6,6 +6,9 @@ import java.util.function.Supplier;
 import org.cytoscape.model.CyNetwork;
 import org.cytoscape.model.CyNetworkManager;
 import org.cytoscape.model.CyNetworkTableManager;
+import org.cytoscape.serviceapps.client.ClientSettings;
+import org.cytoscape.serviceapps.client.HttpTransport;
+import org.cytoscape.serviceapps.client.JdkHttpTransport;
 
 /**
  * The app's NDEx link and the edit tracker behind it, built together so the link always consults
@@ -37,7 +40,11 @@ public final class NdexSupport {
             tracker.markSaved(network);
         }
         return new NdexSupport(
-                tracker, new NdexLink(() -> baseUrl(settings.get()), tracker::edited));
+                tracker,
+                new NdexLink(
+                        () -> baseUrl(settings.get()),
+                        tracker::edited,
+                        () -> transport(settings.get())));
     }
 
     /** The NDEx server named in {@code settings}, or the default. */
@@ -45,6 +52,12 @@ public final class NdexSupport {
         return settings == null
                 ? NdexLink.DEFAULT_BASE_URL
                 : settings.getProperty(NdexLink.BASE_URL, NdexLink.DEFAULT_BASE_URL);
+    }
+
+    /** Sends NDEx requests with the same timeouts as service app calls. */
+    static HttpTransport transport(Properties settings) {
+        ClientSettings timeouts = ClientSettings.from(settings);
+        return new JdkHttpTransport(timeouts.connectTimeout(), timeouts.readTimeout());
     }
 
     /** The tracker, to register for Desktop's row, network-added and network-destroyed events. */

@@ -8,8 +8,8 @@ import org.cytoscape.serviceapps.fixture.FixtureServer;
 
 /**
  * The result action contract through {@code serviceapps task call} with {@code uiInput} omitted:
- * the target is the active network and every one of its views. The test that targets one view is
- * skipped; the every-view test covers the default.
+ * the target is the active network and every one of its views. Targeting one view is covered by
+ * {@link ViewTargetResultActionContract}.
  */
 @ExtendWith(DesktopExtension.class)
 class ResultActionContractDefaultsIT extends ResultActionContract {

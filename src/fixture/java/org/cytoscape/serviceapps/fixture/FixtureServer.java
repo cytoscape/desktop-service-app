@@ -30,11 +30,23 @@ import com.sun.net.httpserver.HttpServer;
  * GET    /{scenario}/{id}           task status and result
  * DELETE /{scenario}/{id}           delete the task: 204
  * </pre>
+ *
+ * <p>It also stands in for an NDEx server at {@code /ndex}, holding the one network {@link
+ * #NDEX_NETWORK}:
+ *
+ * <pre>
+ * GET    /ndex/v3/networks/{uuid}/summary   200 for NDEX_NETWORK, 404 for any other
+ * </pre>
  */
 public class FixtureServer implements AutoCloseable {
 
     /** One request the server received. */
     public record RecordedRequest(String method, String path, String body) {}
+
+    /** The one network the stand-in NDEx server holds. */
+    public static final String NDEX_NETWORK = "6f1b4ca6-0f2a-11ef-9a1f-005056ae23aa";
+
+    private static final String NDEX = "ndex";
 
     private static final class TaskState {
         final Scenario scenario;
@@ -80,6 +92,11 @@ public class FixtureServer implements AutoCloseable {
         return "http://127.0.0.1:" + port();
     }
 
+    /** The stand-in NDEx server's base URL, as {@code ndex.base.url} names a server. */
+    public String ndexUrl() {
+        return baseUrl() + "/" + NDEX;
+    }
+
     /** The URL a scenario is served at, as a service app would be installed. */
     public String url(String scenario) {
         ScenarioCatalog.get(scenario);
@@ -113,6 +130,10 @@ public class FixtureServer implements AutoCloseable {
             requests.add(new RecordedRequest(method, path, body));
 
             String[] parts = path.replaceAll("^/+|/+$", "").split("/");
+            if (parts[0].equals(NDEX)) {
+                ndexReply(exchange, method, parts);
+                return;
+            }
             Scenario scenario = parts[0].isEmpty() ? null : scenarios.get(parts[0]);
             if (scenario == null) {
                 reply(exchange, 404, message("no service app at " + path));
@@ -156,6 +177,25 @@ public class FixtureServer implements AutoCloseable {
     }
 
     /** Status polls advance the task one progress step each; result fetches don't. */
+    /** {@code GET /ndex/v3/networks/{uuid}/summary}: a small summary, or 404. */
+    private static void ndexReply(HttpExchange exchange, String method, String[] parts)
+            throws IOException {
+        boolean summary =
+                method.equals("GET")
+                        && parts.length == 5
+                        && parts[1].equals("v3")
+                        && parts[2].equals("networks")
+                        && parts[4].equals("summary");
+        if (summary && parts[3].equals(NDEX_NETWORK)) {
+            JsonObject body = new JsonObject();
+            body.addProperty("externalId", NDEX_NETWORK);
+            body.addProperty("name", "NDEx network");
+            reply(exchange, 200, body);
+        } else {
+            reply(exchange, 404, message("no NDEx network at " + exchange.getRequestURI()));
+        }
+    }
+
     private void taskReply(HttpExchange exchange, String id, boolean statusOnly)
             throws IOException {
         TaskState task = tasks.get(id);

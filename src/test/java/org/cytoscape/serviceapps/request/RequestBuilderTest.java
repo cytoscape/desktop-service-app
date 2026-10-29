@@ -1,5 +1,6 @@
 package org.cytoscape.serviceapps.request;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import org.cytoscape.serviceapps.model.Parameter;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.ndex.NdexLink;
+import org.cytoscape.serviceapps.ndex.NdexNetworkException;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
@@ -312,9 +314,9 @@ class RequestBuilderTest {
      */
     private BuiltRequest buildWithNdex(ServiceMetadata meta, ServiceInput input, CyNetwork target) {
         NdexLink ndex =
-                new NdexLink(() -> "https://ndex.example", n -> false) {
+                new NdexLink(() -> "https://ndex.example", n -> false, () -> TestNdex.FOUND) {
                     @Override
-                    public String networkUrl(CyNetwork n) {
+                    public String checkedNetworkUrl(CyNetwork n) {
                         return n == network ? "https://ndex.example/v3/networks/u-1" : "";
                     }
                 };
@@ -347,5 +349,55 @@ class RequestBuilderTest {
         BuiltRequest built = buildWithNdex(meta, ServiceInput.empty(), null);
 
         assertEquals(Map.of("Interactome", ""), built.request().parameters);
+    }
+
+    @Test
+    void anNdexCheckThatFailsFailsTheRequestWithItsReason() {
+        ServiceMetadata meta = network("all", "network");
+        meta.parameters = List.of(parameter("Interactome", Parameter.NDEX_UUID));
+        NdexLink ndex =
+                new NdexLink(() -> "https://ndex.example", n -> false, () -> TestNdex.FOUND) {
+                    @Override
+                    public String checkedNetworkUrl(CyNetwork n) {
+                        throw new NdexNetworkException("the reason");
+                    }
+                };
+
+        RequestException e =
+                assertThrows(
+                        RequestException.class,
+                        () ->
+                                new RequestBuilder(cx2, ndex)
+                                        .build(meta, ServiceInput.empty(), network, null));
+
+        assertEquals("the reason", e.getMessage());
+    }
+
+    @Test
+    void severalNdexUuidParametersShareOneCheck() {
+        ServiceMetadata meta = network("all", "network");
+        meta.parameters =
+                List.of(
+                        parameter("Interactome", Parameter.NDEX_UUID),
+                        parameter("Reference", Parameter.NDEX_UUID));
+        List<CyNetwork> checked = new ArrayList<>();
+        NdexLink ndex =
+                new NdexLink(() -> "https://ndex.example", n -> false, () -> TestNdex.FOUND) {
+                    @Override
+                    public String checkedNetworkUrl(CyNetwork n) {
+                        checked.add(n);
+                        return "https://ndex.example/v3/networks/u-1";
+                    }
+                };
+
+        BuiltRequest built =
+                new RequestBuilder(cx2, ndex).build(meta, ServiceInput.empty(), network, null);
+
+        assertEquals(
+                Map.of(
+                        "Interactome", "https://ndex.example/v3/networks/u-1",
+                        "Reference", "https://ndex.example/v3/networks/u-1"),
+                built.request().parameters);
+        assertEquals(List.of(network), checked);
     }
 }

@@ -474,9 +474,11 @@ public class ServiceAppManagerDialog extends JDialog {
 
     /** The trashcan, centered, in Desktop's icon font. */
     private static final class TrashRenderer extends DefaultTableCellRenderer {
+        private final Font iconFont;
+
         TrashRenderer(Font iconFont) {
+            this.iconFont = iconFont;
             setHorizontalAlignment(SwingConstants.CENTER);
-            setFont(iconFont);
         }
 
         @Override
@@ -489,6 +491,8 @@ public class ServiceAppManagerDialog extends JDialog {
                 int column) {
             super.getTableCellRendererComponent(
                     table, IconManager.ICON_TRASH_O, isSelected, hasFocus, row, column);
+            // The superclass sets the table's font on every call, so the icon font goes last.
+            setFont(iconFont);
             setForeground(table.getForeground());
             return this;
         }

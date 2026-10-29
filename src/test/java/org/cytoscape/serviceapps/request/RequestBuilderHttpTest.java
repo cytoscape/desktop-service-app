@@ -27,6 +27,7 @@ import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 /** What the service receives is exactly the built request: checked in the fixture's request log. */
@@ -54,13 +55,15 @@ class RequestBuilderHttpTest {
                                 null),
                         ndex);
         BuiltRequest built = builder.build(meta, input, network, null);
-        new ServiceAppClient(
-                        fixture.url(scenario),
-                        new JdkHttpTransport(Duration.ofSeconds(5), Duration.ofSeconds(10)))
-                .submit(built.request());
+        new ServiceAppClient(fixture.url(scenario), http()).submit(built.request());
 
-        JsonObject received =
-                JsonParser.parseString(fixture.requests().get(0).body()).getAsJsonObject();
+        String body =
+                fixture.requests().stream()
+                        .filter(r -> r.method().equals("POST"))
+                        .findFirst()
+                        .orElseThrow()
+                        .body();
+        JsonObject received = JsonParser.parseString(body).getAsJsonObject();
         assertEquals(Json.tree(built.request()), received);
         return received;
     }
@@ -105,17 +108,26 @@ class RequestBuilderHttpTest {
         assertEquals(2, data.getAsJsonObject("rows").size());
     }
 
-    @Test
-    void anNdexUuidParameterArrivesAsTheNetworksNdexUrlThenEmptyOnceEdited(FixtureServer fixture) {
+    private static JdkHttpTransport http() {
+        return new JdkHttpTransport(Duration.ofSeconds(5), Duration.ofSeconds(10));
+    }
+
+    /** A network CyNDEx-2 imported from NDEx as {@code uuid}. */
+    private static CyNetwork fromNdex(String uuid) {
         CyNetwork network = TestNetworks.withEveryColumnType();
         CyTable hidden = network.getTable(CyNetwork.class, CyNetwork.HIDDEN_ATTRS);
         hidden.createColumn(NdexLink.UUID_COLUMN, String.class, false);
-        hidden.getRow(network.getSUID())
-                .set(NdexLink.UUID_COLUMN, "6f1b4ca6-0f2a-11ef-9a1f-005056ae23aa");
+        hidden.getRow(network.getSUID()).set(NdexLink.UUID_COLUMN, uuid);
+        return network;
+    }
+
+    @Test
+    void anNdexUuidParameterArrivesAsTheNetworksNdexUrlThenEmptyOnceEdited(FixtureServer fixture) {
+        CyNetwork network = fromNdex(FixtureServer.NDEX_NETWORK);
         NetworkEditTracker edits =
                 new NetworkEditTracker(TestNetworks.support().getNetworkTableManager());
         edits.markSaved(network);
-        NdexLink ndex = new NdexLink(() -> "https://ndex.example/", edits::edited);
+        NdexLink ndex = new NdexLink(() -> fixture.ndexUrl() + "/", edits::edited, () -> http());
         ServiceInput input = new ServiceInput(Map.of("K", "10"), Map.of());
 
         JsonObject saved = submitAndRead(fixture, "param-ndex-uuid", input, network, ndex);
@@ -123,9 +135,65 @@ class RequestBuilderHttpTest {
         JsonObject edited = submitAndRead(fixture, "param-ndex-uuid", input, network, ndex);
 
         assertEquals(
-                "https://ndex.example/v3/networks/6f1b4ca6-0f2a-11ef-9a1f-005056ae23aa",
+                fixture.ndexUrl() + "/v3/networks/" + FixtureServer.NDEX_NETWORK,
                 saved.getAsJsonObject("parameters").get("NDEx network").getAsString());
         assertEquals("", edited.getAsJsonObject("parameters").get("NDEx network").getAsString());
         assertEquals("10", edited.getAsJsonObject("parameters").get("K").getAsString());
+    }
+
+    @Test
+    void theNdexServerIsAskedForTheNetworksSummaryBeforeTheUrlIsSent(FixtureServer fixture) {
+        CyNetwork network = fromNdex(FixtureServer.NDEX_NETWORK);
+        NdexLink ndex = new NdexLink(fixture::ndexUrl, n -> false, () -> http());
+
+        submitAndRead(
+                fixture,
+                "param-ndex-uuid",
+                new ServiceInput(Map.of("K", "10"), Map.of()),
+                network,
+                ndex);
+
+        assertEquals(
+                List.of(
+                        "GET /ndex/v3/networks/" + FixtureServer.NDEX_NETWORK + "/summary",
+                        "POST /param-ndex-uuid"),
+                fixture.requests().stream().map(r -> r.method() + " " + r.path()).toList());
+    }
+
+    @Test
+    void aNetworkTheNdexServerDoesntHoldFailsTheRequestAndNothingIsSent(FixtureServer fixture) {
+        CyNetwork network = fromNdex("0b5e0f6c-2c6a-11ef-9a1f-005056ae23aa");
+        network.getRow(network).set(CyNetwork.NAME, "Interactome");
+        NdexLink ndex = new NdexLink(fixture::ndexUrl, n -> false, () -> http());
+        fixture.clearRequests();
+        RequestBuilder builder =
+                new RequestBuilder(
+                        new FakeCx2Support(
+                                TestNetworks.support().getNetworkManager(),
+                                mock(CyNetworkViewManager.class),
+                                null),
+                        ndex);
+
+        RequestException e =
+                assertThrows(
+                        RequestException.class,
+                        () ->
+                                builder.build(
+                                        TestNetworks.scenario("param-ndex-uuid"),
+                                        new ServiceInput(Map.of("K", "10"), Map.of()),
+                                        network,
+                                        null));
+
+        assertEquals(
+                "Unable to use network \"Interactome\" because it does not exist on "
+                        + fixture.ndexUrl()
+                        + ". Only networks loaded from "
+                        + fixture.ndexUrl()
+                        + " will work with service apps.",
+                e.getMessage());
+        assertEquals(
+                List.of("GET"),
+                fixture.requests().stream().map(FixtureServer.RecordedRequest::method).toList(),
+                "only the NDEx check; the service gets nothing");
     }
 }

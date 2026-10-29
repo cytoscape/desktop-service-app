@@ -68,6 +68,16 @@ An empty value tells the app the network lives only in Desktop, and the run goes
 
 Desktop knows a network's NDEx UUID from the CyNDEx-2 app, which records it on every import and save. A change means any added or removed node or edge, or any changed value in the node or edge tables; selecting nodes isn't a change. Changes are counted from when the Desktop Service App starts, or from when the session is opened. The NDEx server in the address is the `ndex.base.url` [setting](#settings).
 
+Before it sends an address, Desktop asks that NDEx server for the network's summary. If the server can't confirm the network, the run stops before anything is sent, and says why:
+
+| The NDEx server | The run fails with |
+|---|---|
+| Doesn't hold the network, such as one imported from another NDEx server or deleted since | `Unable to use network "<name>" because it does not exist on <server>. Only networks loaded from <server> will work with service apps.` |
+| Holds it as a private network | `Unable to use network "<name>" because it is not public on <server>. Only public networks loaded from <server> will work with service apps.` |
+| Can't be reached, or answers with an error | The reason, naming the server |
+
+To use a network from another NDEx server, set `ndex.base.url` to that server.
+
 Click **OK** and the network you were looking at is sent to the service: the whole network, or only the selected nodes and edges when the app works on a selection. An app that takes no data (its input type is missing or `none`) gets only its inputs, and runs without a network open. The progress bar follows the service. When the service is done, its result is applied to that same network, even if you've switched to another one in the meantime.
 
 ### When a menu entry is greyed out
@@ -120,6 +130,7 @@ Results can't be undone. Save your session first if you may want to go back.
 
 A run either completes or fails. When it completes, the task history shows what was applied, plus any notes, such as rows that were skipped. When it fails, Cytoscape shows an error, and the message starts with one of these:
 
+- **Unable to use network:** the app needs the network's NDEx address, and the NDEx server couldn't confirm the network; see [Apps that need the network's NDEx address](#apps-that-need-the-networks-ndex-address). Nothing was sent.
 - **Service task failed:** the service refused the task, reported a failure, stopped answering, or took longer than the time limit (30 minutes by default). Nothing was applied.
 - **Rendering failed:** the result couldn't be applied. As in Cytoscape Web, the first action that can't be applied stops the run. Actions before it stay applied and later ones aren't, and the message lists both. For example:
   `Rendering failed at updateTables (2 of 3): updateTables column 'score' is integer in Desktop but string in the result. Applied: updateLayouts. Not applied: updateSelection.`
@@ -151,7 +162,7 @@ Updating an HCX (hierarchy) network in place isn't supported yet; that action is
 | `read.timeout.ms` | 30000 | How long to wait for a service to answer one request |
 | `poll.interval.ms` | 500 | How often a run checks its task's progress |
 | `run.timeout.ms` | 1800000 | How long a run may take before it is stopped |
-| `ndex.base.url` | https://www.ndexbio.org | The NDEx server in the address sent to [apps that need a network's NDEx address](#apps-that-need-the-networks-ndex-address) |
+| `ndex.base.url` | https://www.ndexbio.org | The NDEx server in the address sent to [apps that need a network's NDEx address](#apps-that-need-the-networks-ndex-address), which is asked to confirm the network first |
 
 ## For agents and scripts
 

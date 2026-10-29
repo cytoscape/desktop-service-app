@@ -229,12 +229,7 @@ public class JvmMenuHarness implements ContractHarness {
         target.network.getRow(target.network).set(name, value);
     }
 
-    @Override
-    public boolean canFailBrowser() {
-        return true;
-    }
-
-    @Override
+    /** Makes the next attempt to open a web browser fail. */
     public void failBrowser() {
         browserFails = true;
     }

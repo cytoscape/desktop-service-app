@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Cursor;
+import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
 import java.awt.Rectangle;
@@ -63,6 +64,9 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(FixtureServerExtension.class)
 class ServiceAppManagerDialogTest {
 
+    /** Stands in for Desktop's icon font, distinct from the table's own font. */
+    private static final Font ICON_FONT = new Font(Font.MONOSPACED, Font.PLAIN, 14);
+
     @TempDir Path dir;
 
     private ManagerFixture f;
@@ -99,7 +103,7 @@ class ServiceAppManagerDialogTest {
                                             questions.add(question);
                                             return confirm;
                                         },
-                                        new JLabel().getFont(),
+                                        ICON_FONT,
                                         appStore,
                                         opened::add));
     }
@@ -445,7 +449,6 @@ class ServiceAppManagerDialogTest {
         assertEquals(
                 List.of("Close"),
                 Arrays.stream(buttons.getComponents()).map(c -> ((JButton) c).getText()).toList());
-        assertNull(find(dialog.getContentPane(), "uninstall"), "the Uninstall button is gone");
     }
 
     @Test
@@ -459,6 +462,7 @@ class ServiceAppManagerDialogTest {
         for (String name : List.of(hello, offline)) {
             JLabel trash = cell(name, ServiceAppManagerDialog.TRASH);
             assertEquals(IconManager.ICON_TRASH_O, trash.getText());
+            assertEquals(ICON_FONT, trash.getFont(), "the glyph draws in the icon font");
             assertEquals(SwingConstants.CENTER, trash.getHorizontalAlignment());
             assertEquals("Uninstall " + name, tooltip(rowOf(name), ServiceAppManagerDialog.TRASH));
         }

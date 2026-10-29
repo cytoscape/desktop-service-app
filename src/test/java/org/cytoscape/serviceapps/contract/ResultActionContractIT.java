@@ -12,7 +12,7 @@ import org.cytoscape.serviceapps.fixture.FixtureServer;
  * path's {@code ResultActionContractTest}.
  */
 @ExtendWith(DesktopExtension.class)
-class ResultActionContractIT extends ResultActionContract {
+class ResultActionContractIT extends ViewTargetResultActionContract {
 
     private final DockerTaskCallHarness harness;
 
