@@ -29,13 +29,15 @@ class AppSupportTest {
                         .orElseThrow()
                         .contains("'accessToken'"));
         assertTrue(
-                AppSupport.unsupportedReason(scenario("unsupported-ndex-uuid"), true)
-                        .orElseThrow()
-                        .contains("'ndexUUID'"));
-        assertTrue(
                 AppSupport.unsupportedReason(scenario("unsupported-edgelist"), true)
                         .orElseThrow()
                         .contains("edge list"));
+    }
+
+    @Test
+    void anNdexUuidParameterIsSupported() {
+        assertEquals(
+                Optional.empty(), AppSupport.unsupportedReason(scenario("param-ndex-uuid"), true));
     }
 
     @Test

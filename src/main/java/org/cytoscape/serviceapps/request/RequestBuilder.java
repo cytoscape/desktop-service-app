@@ -18,9 +18,12 @@ import org.cytoscape.model.subnetwork.CyRootNetwork;
 import org.cytoscape.model.subnetwork.CySubNetwork;
 import org.cytoscape.serviceapps.app.AppSupport;
 import org.cytoscape.serviceapps.cx.Cx2Support;
+import org.cytoscape.serviceapps.model.Parameter;
+import org.cytoscape.serviceapps.model.ParameterKeys;
 import org.cytoscape.serviceapps.model.ServiceInputDefinition;
 import org.cytoscape.serviceapps.model.ServiceMetadata;
 import org.cytoscape.serviceapps.model.TaskRequest;
+import org.cytoscape.serviceapps.ndex.NdexLink;
 import org.cytoscape.view.model.CyNetworkView;
 
 /**
@@ -36,14 +39,20 @@ import org.cytoscape.view.model.CyNetworkView;
  *   <li>Network input, model {@code graph}: minimal CX2 with IDs only.
  * </ul>
  *
+ * <p>Desktop fills each {@code ndexUUID} parameter itself, with the target's NDEx URL from {@link
+ * NdexLink}, whatever the input says for it, and asks for it once per request. When that value is
+ * empty, the request's notes say why.
+ *
  * @see <a href="https://github.com/cytoscape/cytoscape-web/wiki/Task-Request">Task Request</a>
  */
 public class RequestBuilder {
 
     private final Cx2Support cx2;
+    private final NdexLink ndex;
 
-    public RequestBuilder(Cx2Support cx2) {
+    public RequestBuilder(Cx2Support cx2, NdexLink ndex) {
         this.cx2 = cx2;
+        this.ndex = ndex;
     }
 
     /**
@@ -95,7 +104,21 @@ public class RequestBuilder {
 
         Map<String, String> parameters = new LinkedHashMap<>();
         input.parameters().forEach((key, value) -> parameters.put(key, value == null ? "" : value));
-        return new BuiltRequest(new TaskRequest(meta.name, data, parameters), sent);
+        List<String> keys = ParameterKeys.of(meta.parameters());
+        NdexLink.Value ndexValue = null;
+        for (int i = 0; i < keys.size(); i++) {
+            if (Parameter.NDEX_UUID.equals(meta.parameters().get(i).type)) {
+                if (ndexValue == null) {
+                    ndexValue = ndex.value(target);
+                }
+                parameters.put(keys.get(i), ndexValue.url());
+            }
+        }
+        List<String> notes =
+                ndexValue == null || ndexValue.note() == null
+                        ? List.of()
+                        : List.of(ndexValue.note());
+        return new BuiltRequest(new TaskRequest(meta.name, data, parameters), sent, notes);
     }
 
     private JsonArray networkCx2(

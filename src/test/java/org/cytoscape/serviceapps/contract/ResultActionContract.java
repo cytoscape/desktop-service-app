@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The result action rendering contract, written once against {@link ContractHarness}. Each scenario
@@ -47,13 +46,13 @@ public abstract class ResultActionContract {
         assertEquals(otherBefore, h.otherState(), "the second open network changed");
     }
 
-    private Outcome succeed(String scenario, Ui ui) {
+    protected Outcome succeed(String scenario, Ui ui) {
         Outcome outcome = h.run(scenario, ui);
         assertTrue(outcome.succeeded(), scenario + ": " + outcome.message());
         return outcome;
     }
 
-    private Outcome fail(String scenario, Ui ui) {
+    protected Outcome fail(String scenario, Ui ui) {
         Outcome outcome = h.run(scenario, ui);
         assertFalse(outcome.succeeded(), scenario + " should fail: " + outcome.message());
         return outcome;
@@ -85,19 +84,7 @@ public abstract class ResultActionContract {
         }
     }
 
-    @Test
-    void updateLayoutsWithATargetViewChangesOnlyThatView() {
-        assumeTrue(h.supportsViewTarget(), "this harness always targets every view");
-        h.addTargetView();
-        double[] secondBefore = h.position(1, 7);
-
-        succeed("result-update-layouts", Ui.CURRENT_VIEW);
-
-        assertArrayEquals(new double[] {25.2, -473.6}, xy(0, 7));
-        assertArrayEquals(secondBefore, h.position(1, 7));
-    }
-
-    private double[] xy(int view, long node) {
+    protected double[] xy(int view, long node) {
         double[] p = h.position(view, node);
         return new double[] {p[0], p[1]};
     }
@@ -290,19 +277,6 @@ public abstract class ResultActionContract {
                         + " Nothing was applied.",
                 outcome.message());
         assertEquals(List.of(), h.openedUrls());
-    }
-
-    @Test
-    void aBrowserThatCantOpenFailsTheRun() {
-        assumeTrue(h.canFailBrowser(), "this harness can't make the browser fail");
-        h.failBrowser();
-
-        Outcome outcome = fail("result-open-url", Ui.CURRENT_VIEW);
-
-        assertEquals(
-                "Rendering failed at openURL (1 of 1): no web browser could be opened for"
-                        + " https://www.cytoscape.org. Nothing was applied.",
-                outcome.message());
     }
 
     @Test

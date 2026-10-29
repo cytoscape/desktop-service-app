@@ -175,8 +175,8 @@ public class FormSpecBuilder {
                             groups);
                 }
             default:
-                // file, accessToken, ndexUUID and unknown types get no control; AppSupport keeps
-                // apps that use them from running.
+                // ndexUUID gets no control: RequestBuilder fills it. file, accessToken and unknown
+                // types get none either, and AppSupport keeps apps that use them from running.
                 return null;
         }
     }

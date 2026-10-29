@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - Unreleased
+## [0.1.2] - 2026-10-29
+
+Trashcan uninstall in the manager, and the `ndexUUID` parameter.
+
+### Changed
+
+- **Uninstalling from the manager.** Each row ends with a trashcan, which asks "Are you sure you
+want to uninstall <name>?" with Yes and No. Delete or Backspace on the selected row asks the same.
+The Uninstall button and the light red row highlight are gone, and a selected row is light grey
+([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
+
+### Added
+
+- **Parameter type `ndexUUID`.** A service app that asks for the network's NDEx address now runs.
+Desktop fills the value itself, as Cytoscape Web does: the network's NDEx URL when it came from or
+was saved to NDEx and is unchanged since, and an empty value otherwise. The NDEx server is the new
+`ndex.base.url` setting, and it is asked to confirm the network before the address is sent,
+waiting up to 3 seconds. When the value is empty, the run's completion
+message says why, such as a network edited since its NDEx save or one the server doesn't hold
+([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
+
+## [0.1.1] - 2026-10-27 
 
 Parity with Cytoscape Web's newer service app metadata.
 

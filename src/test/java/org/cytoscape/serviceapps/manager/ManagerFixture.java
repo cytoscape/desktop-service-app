@@ -21,6 +21,7 @@ import org.cytoscape.serviceapps.run.RunSettings;
 import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.ManualExecutor;
+import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.TaskManager;
@@ -60,7 +61,7 @@ class ManagerFixture {
                 new ServiceAppRunFactory(
                         registry,
                         clients,
-                        new RequestBuilder(cx2),
+                        new RequestBuilder(cx2, TestNdex.link()),
                         new RenderServiceAppUI(List.of()),
                         () -> new RunSettings(Duration.ofMillis(10), Duration.ofSeconds(20)),
                         active);

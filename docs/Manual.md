@@ -53,6 +53,28 @@ Both open the same dialog:
 
 The dialog appears even for an app with no inputs, so you always see what is about to run.
 
+### Apps that need the network's NDEx address
+
+Some service apps ask for the NDEx address of the network they work on, with an `ndexUUID` input. Desktop fills it in for you, and the dialog doesn't show it. The app receives the network's NDEx address, such as `https://www.ndexbio.org/v3/networks/<uuid>`, when the network was imported from or saved to NDEx, is unchanged since, and the NDEx server confirms it holds the network. Otherwise the app receives an empty value, and the run's completion message ends with a note saying why:
+
+| The network | Note in the completion message |
+|---|---|
+| None open, for an app that takes no data | `NDEx address left empty: no network is open` |
+| Created in Desktop, or never imported from or saved to NDEx | `NDEx address left empty: network "<name>" was never imported from or saved to NDEx` |
+| Has an NDEx UUID that isn't one | `NDEx address left empty: network "<name>" has an NDEx UUID that isn't valid: "<value>"` |
+| Changed in Desktop since its last NDEx import or save | `NDEx address left empty: network "<name>" was edited in Desktop since it was last imported from or saved to NDEx` |
+| Not on the NDEx server, such as one imported from another server or deleted since | `NDEx address left empty: network "<name>" does not exist on <server>, and only networks loaded from <server> are sent with their NDEx address` |
+| Private on the NDEx server | `NDEx address left empty: network "<name>" is not public on <server>, and only public networks are sent with their NDEx address` |
+| The NDEx server answers with an error | `NDEx address left empty: NDEx at <server> answered HTTP <status> for network "<name>"` |
+| The NDEx server can't be reached in time | `NDEx address left empty: NDEx at <server> could not be reached for network "<name>": <reason>` |
+| The `ndex.base.url` setting isn't a web address | `NDEx address left empty: the ndex.base.url setting, <value>, is not a web address` |
+
+An empty value tells the app the network lives only in Desktop, and the run goes ahead, as in Cytoscape Web. The app still receives the network itself. Community Detection, for example, still clusters the network you sent, and links its result to that network by name rather than to the NDEx copy. Save the network to NDEx first if you want the result linked to it there.
+
+Desktop knows a network's NDEx UUID from the CyNDEx-2 app, which records it on every import and save. A change means any added or removed node or edge, or any changed value in the node or edge tables; selecting nodes isn't a change. Changes are counted from when the Desktop Service App starts, or from when the session is opened.
+
+Before it sends an address, Desktop asks the NDEx server in the `ndex.base.url` [setting](#settings) for the network's summary, waiting up to 3 seconds. To send the addresses of networks from another NDEx server, set `ndex.base.url` to that server.
+
 Click **OK** and the network you were looking at is sent to the service: the whole network, or only the selected nodes and edges when the app works on a selection. An app that takes no data (its input type is missing or `none`) gets only its inputs, and runs without a network open. The progress bar follows the service. When the service is done, its result is applied to that same network, even if you've switched to another one in the meantime.
 
 ### When a menu entry is greyed out
@@ -65,7 +87,7 @@ Like Desktop's own menu entries, an entry is greyed out while what it works on i
 It is also greyed out when the app can't run at all. Then its tooltip ends with "Unavailable:" and the reason:
 
 - **The service can't be reached.** Check your connection, then open the manager, which checks every service again.
-- **Cytoscape Desktop can't run this app.** It uses an input type Desktop doesn't support yet (a file, an access token or an NDEx network ID), asks for its network in a format Desktop doesn't send, or needs the CX Support app.
+- **Cytoscape Desktop can't run this app.** It uses an input type Desktop doesn't support yet (a file or an access token), asks for its network in a format Desktop doesn't send, or needs the CX Support app.
 
 ## The Service Apps manager
 
@@ -77,9 +99,11 @@ It is also greyed out when the app can't run at all. Then its tooltip ends with 
 | **Description** | The app's description. Hover to read all of it. |
 | **Author** | The app's author. |
 | **Status** | **Checking…** when the manager opens, then **Online** (bold green) or **Offline** (bold red) as each service answers or doesn't. |
+| *(trashcan)* | Click to uninstall that app, or select the row and press **Delete** or **Backspace**. |
 
 - **Double-click** an app's row, or select it and press **Enter**, to run it, opening the same dialog as its menu entry. The row turns light blue until the dialog closes. A double click does nothing while the app is **Checking…** or **Offline**, or when Desktop can't run it; hover over the name to see why.
-- **Click** a row to highlight it in light red (the highlight waits a moment, so a double click never flashes red), then click **Uninstall** beside **Close** to remove that app. You are asked `Uninstall <name>? Are you sure?`; **Cancel** leaves everything as it was. **Uninstall** stays greyed out until a row is highlighted, and clicking anywhere else in the manager clears the highlight.
+- **Click the trashcan** at the end of an app's row, or select the row and press **Delete** or **Backspace**, to uninstall it. You are asked `Are you sure you want to uninstall <name>?`; **Yes** removes the app, and **No** leaves everything as it was.
+- **Click** a row to select it; it turns light grey. Clicking anywhere else in the manager clears the selection.
 
 The manager stays open while you work and updates on its own when apps are installed or removed elsewhere, such as from the App Store page. Close it with **Close**, the window's close button, or Escape. With no service apps installed, it says **No Service Apps installed**, with a link that opens the App Store's service apps page in your web browser so you can choose one to install: [apps.cytoscape.org/apps/platform/service/](https://apps.cytoscape.org/apps/platform/service/), or the same page on the App Store site set in Desktop's `appStoreDownloadSiteUrl1` property (**Edit > Preferences > Properties**, `cytoscape3`), when that is set. If you already know a service app's URL, it also shows the command to install it from the Command Line (**View > Show Command Panel**): `serviceapps install url=<service URL>`.
 
@@ -134,6 +158,7 @@ Updating an HCX (hierarchy) network in place isn't supported yet; that action is
 | `read.timeout.ms` | 30000 | How long to wait for a service to answer one request |
 | `poll.interval.ms` | 500 | How often a run checks its task's progress |
 | `run.timeout.ms` | 1800000 | How long a run may take before it is stopped |
+| `ndex.base.url` | https://www.ndexbio.org | The NDEx server in the address sent to [apps that need a network's NDEx address](#apps-that-need-the-networks-ndex-address), which is asked to confirm the network first |
 
 ## For agents and scripts
 

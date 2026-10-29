@@ -19,6 +19,7 @@ import org.cytoscape.application.swing.CySwingApplication;
 import org.cytoscape.io.read.InputStreamTaskFactory;
 import org.cytoscape.io.write.CyNetworkViewWriterFactory;
 import org.cytoscape.model.CyNetworkManager;
+import org.cytoscape.model.CyNetworkTableManager;
 import org.cytoscape.property.CyProperty;
 import org.cytoscape.service.util.AbstractCyActivator;
 import org.cytoscape.service.util.CyServiceRegistrar;
@@ -50,6 +51,7 @@ import org.cytoscape.serviceapps.manager.ServiceAppManagerDialog;
 import org.cytoscape.serviceapps.manager.ServiceAppManagerModel;
 import org.cytoscape.serviceapps.menu.EmptySubmenus;
 import org.cytoscape.serviceapps.menu.ServiceAppLifecycle;
+import org.cytoscape.serviceapps.ndex.NdexSupport;
 import org.cytoscape.serviceapps.registry.ServiceAppRegistry;
 import org.cytoscape.serviceapps.render.RenderServiceAppUI;
 import org.cytoscape.serviceapps.request.RequestBuilder;
@@ -58,6 +60,7 @@ import org.cytoscape.serviceapps.run.DaemonThreads;
 import org.cytoscape.serviceapps.run.RunSettings;
 import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
 import org.cytoscape.serviceapps.run.ServiceAppRunRegistry;
+import org.cytoscape.util.swing.IconManager;
 import org.cytoscape.util.swing.OpenBrowser;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.Task;
@@ -156,11 +159,17 @@ public class CyActivator extends AbstractCyActivator {
         Consumer<String> openUrl = url -> browser.openURL(url, false);
         FormSpecBuilder forms = new FormSpecBuilder();
         ActiveRuns active = new ActiveRuns();
+        NdexSupport ndex =
+                NdexSupport.start(
+                        networkManager,
+                        getService(bc, CyNetworkTableManager.class),
+                        properties::getProperties);
+        registerAllServices(bc, ndex.listener(), new Properties());
         ServiceAppRunFactory runs =
                 new ServiceAppRunFactory(
                         registry,
                         clients,
-                        new RequestBuilder(cx2),
+                        new RequestBuilder(cx2, ndex.link()),
                         RenderServiceAppUI.standard(viewManager, browser, cx2, applications),
                         () -> RunSettings.from(properties.getProperties()),
                         active);
@@ -188,6 +197,7 @@ public class CyActivator extends AbstractCyActivator {
         lifecycle.start();
 
         ServiceAppStatusChecker checker = new ServiceAppStatusChecker(clients);
+        IconManager icons = getService(bc, IconManager.class);
         ManageServiceAppsAction manage =
                 new ManageServiceAppsAction(
                         () ->
@@ -196,6 +206,7 @@ public class CyActivator extends AbstractCyActivator {
                                         new ServiceAppManagerModel(
                                                 registry, launcher, checker, background),
                                         Confirmer.OPTION_PANE,
+                                        icons.getIconFont(ServiceAppManagerDialog.ICON_SIZE),
                                         appStore.get(),
                                         openUrl));
         registerService(bc, manage, CyAction.class, new Properties());

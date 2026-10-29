@@ -21,8 +21,11 @@ public class Parameter {
     public static final String ACCESS_TOKEN = "accessToken";
     public static final String NDEX_UUID = "ndexUUID";
 
-    /** Types the spec marks experimental, "do not use". */
-    public static final List<String> UNSUPPORTED_TYPES = List.of(FILE, ACCESS_TOKEN, NDEX_UUID);
+    /**
+     * Types the spec marks experimental, "do not use". {@code ndexUUID} is supported: Desktop fills
+     * it with the network's NDEx URL, out of the user's sight.
+     */
+    public static final List<String> UNSUPPORTED_TYPES = List.of(FILE, ACCESS_TOKEN);
 
     /** The label, and the key the value is sent under. */
     public String displayName;

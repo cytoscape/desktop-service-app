@@ -206,10 +206,30 @@ public final class ScenarioCatalog {
         hidden.addProperty("showDescriptionInDialog", false);
         add(all, "description-hidden", hidden);
 
+        // An ndexUUID parameter, which Desktop fills with the network's NDEx URL, beside one the
+        // user fills
+        add(
+                all,
+                "param-ndex-uuid",
+                withParams(
+                        param("NDEx network", "ndexUUID").build(),
+                        param("K", "text")
+                                .add("validationType", "number")
+                                .add("defaultValue", "10")
+                                .build()));
+        // The same parameter on an app that takes no data, which runs with no network open
+        JsonObject ndexNoInput = inputNone();
+        ndexNoInput.getAsJsonObject("serviceInputDefinition").addProperty("type", "none");
+        JsonArray ndexParameter = new JsonArray();
+        ndexParameter.add(param("NDEx network", "ndexUUID").build());
+        ndexNoInput.add("parameters", ndexParameter);
+        JsonArray openUrl = new JsonArray();
+        openUrl.add(action("openURL", json("{\"url\":\"https://www.cytoscape.org\"}")));
+        add(all, "param-ndex-uuid-no-input", declaring(ndexNoInput, "openURL"), openUrl);
+
         // Unsupported inputs
         add(all, "unsupported-file", withParams(param("Input file", "file").build()));
         add(all, "unsupported-access-token", withParams(param("Token", "accessToken").build()));
-        add(all, "unsupported-ndex-uuid", withParams(param("Network", "ndexUUID").build()));
         add(all, "unsupported-edgelist", inputNetwork("network", "edgelist"));
 
         // Menu placement

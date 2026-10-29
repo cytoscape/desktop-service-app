@@ -33,6 +33,7 @@ import org.cytoscape.serviceapps.run.RunSettings;
 import org.cytoscape.serviceapps.run.ServiceAppRun;
 import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
+import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 import org.cytoscape.work.Task;
@@ -85,7 +86,7 @@ class ServiceAppLauncherTest {
                                         url,
                                         new JdkHttpTransport(
                                                 Duration.ofSeconds(2), Duration.ofSeconds(5))),
-                        new RequestBuilder(cx2),
+                        new RequestBuilder(cx2, TestNdex.link()),
                         new RenderServiceAppUI(List.of()),
                         () -> RunSettings.DEFAULTS,
                         new ActiveRuns());
@@ -126,6 +127,22 @@ class ServiceAppLauncherTest {
     @Test
     void aNetworkAppWithNoNetworkOpenExplainsInsteadOfShowingTheDialog() {
         String name = install("menu-root-apps");
+
+        launcher.launch(name);
+
+        assertEquals(
+                List.of(
+                        name
+                                + ": "
+                                + name
+                                + " works on the current network. Open a network first."),
+                warnings);
+        verify(taskManager, never()).execute(any());
+    }
+
+    @Test
+    void anNdexUuidAppThatReadsANetworkExplainsWhenNoneIsOpen() {
+        String name = install("param-ndex-uuid");
 
         launcher.launch(name);
 

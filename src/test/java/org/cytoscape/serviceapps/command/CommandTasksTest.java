@@ -332,10 +332,10 @@ class CommandTasksTest {
         described.description = "  Finds communities\n  and adds   a cluster column ";
         registry.install("a", "1.0", "https://a.example", described);
         ServiceMetadata unsupported = meta("b", "1.0");
-        Parameter uuid = new Parameter();
-        uuid.displayName = "Network";
-        uuid.type = Parameter.NDEX_UUID;
-        unsupported.parameters = List.of(uuid);
+        Parameter token = new Parameter();
+        token.displayName = "Token";
+        token.type = Parameter.ACCESS_TOKEN;
+        unsupported.parameters = List.of(token);
         registry.install("b", "1.0", "https://b.example", unsupported);
         when(cx2.available()).thenReturn(true);
         ListCommandTask task = new ListCommandTask(registry, cx2);

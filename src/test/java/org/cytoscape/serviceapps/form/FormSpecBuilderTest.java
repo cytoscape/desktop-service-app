@@ -242,7 +242,14 @@ class FormSpecBuilderTest {
     void unsupportedParameterTypesGetNoControl() {
         assertTrue(build("unsupported-file").parameters().isEmpty());
         assertTrue(build("unsupported-access-token").parameters().isEmpty());
-        assertTrue(build("unsupported-ndex-uuid").parameters().isEmpty());
+    }
+
+    @Test
+    void anNdexUuidParameterGetsNoControlAndTheOthersKeepTheirs() {
+        FormSpec spec = build("param-ndex-uuid");
+
+        assertEquals(List.of("K"), spec.parameters().stream().map(ControlSpec::key).toList());
+        assertEquals(List.of("K"), new ArrayList<>(spec.initialValues().parameters().keySet()));
     }
 
     @Test

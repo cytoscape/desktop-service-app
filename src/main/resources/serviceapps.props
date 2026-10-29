@@ -7,3 +7,5 @@ read.timeout.ms=30000
 poll.interval.ms=500
 # Milliseconds a whole service app run may take before it is stopped.
 run.timeout.ms=1800000
+# The NDEx server a network's NDEx URL points at, sent to service apps that ask for it.
+ndex.base.url=https://www.ndexbio.org

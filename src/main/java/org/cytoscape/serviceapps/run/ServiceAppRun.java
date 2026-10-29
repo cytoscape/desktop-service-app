@@ -174,6 +174,7 @@ public class ServiceAppRun extends AbstractTask {
             throw new RunException(RenderException.FAILED + ": " + e.getMessage(), e);
         }
         deleteQuietly();
+        built.notes().forEach(report::note);
 
         progress = 100;
         monitor.setProgress(1.0);

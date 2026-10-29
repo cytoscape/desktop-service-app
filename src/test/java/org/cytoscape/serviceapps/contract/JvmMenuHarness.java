@@ -41,6 +41,7 @@ import org.cytoscape.serviceapps.run.ServiceAppRunFactory;
 import org.cytoscape.serviceapps.testsupport.ContractNetwork;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
 import org.cytoscape.serviceapps.testsupport.ManualExecutor;
+import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.util.swing.OpenBrowser;
 import org.cytoscape.view.model.CyNetworkView;
@@ -167,7 +168,7 @@ public class JvmMenuHarness implements ContractHarness {
                 new ServiceAppRunFactory(
                         registry,
                         clients,
-                        new RequestBuilder(cx2),
+                        new RequestBuilder(cx2, TestNdex.link()),
                         RenderServiceAppUI.standard(viewManager, browser, cx2, applications),
                         () -> new RunSettings(Duration.ofMillis(10), Duration.ofSeconds(30)),
                         active);
@@ -228,12 +229,7 @@ public class JvmMenuHarness implements ContractHarness {
         target.network.getRow(target.network).set(name, value);
     }
 
-    @Override
-    public boolean canFailBrowser() {
-        return true;
-    }
-
-    @Override
+    /** Makes the next attempt to open a web browser fail. */
     public void failBrowser() {
         browserFails = true;
     }

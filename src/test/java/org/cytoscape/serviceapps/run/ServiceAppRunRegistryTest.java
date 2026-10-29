@@ -21,6 +21,7 @@ import org.cytoscape.serviceapps.request.RequestBuilder;
 import org.cytoscape.serviceapps.request.ServiceInput;
 import org.cytoscape.serviceapps.testsupport.ContractNetwork;
 import org.cytoscape.serviceapps.testsupport.FakeCx2Support;
+import org.cytoscape.serviceapps.testsupport.TestNdex;
 import org.cytoscape.serviceapps.testsupport.TestNetworks;
 import org.cytoscape.view.model.CyNetworkViewManager;
 
@@ -45,7 +46,8 @@ class ServiceAppRunRegistryTest {
                     new FakeCx2Support(
                             TestNetworks.support().getNetworkManager(),
                             viewManager,
-                            ContractNetwork.views().getNetworkViewFactory()));
+                            ContractNetwork.views().getNetworkViewFactory()),
+                    TestNdex.link());
     private final RenderServiceAppUI renderer =
             new RenderServiceAppUI(List.of(new LayoutsHandler(viewManager)));
     private final ActiveRuns active = new ActiveRuns();
