@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - Unreleased
+## [0.1.2] - 2026-10-29
 
 Trashcan uninstall in the manager, and the `ndexUUID` parameter.
 
@@ -26,7 +26,7 @@ waiting up to 3 seconds. When the value is empty, the run's completion
 message says why, such as a network edited since its NDEx save or one the server doesn't hold
 ([#4](https://github.com/cytoscape/desktop-service-app/issues/4)).
 
-## [0.1.1] - Unreleased
+## [0.1.1] - 2026-10-27 
 
 Parity with Cytoscape Web's newer service app metadata.
 
